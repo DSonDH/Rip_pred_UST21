@@ -5,7 +5,7 @@ import torch
 from experiments.experiment import Experiment
 
 # ===================================================
-# core configs frequently used
+# configs for pipeline setting
 
 study = 'NIA'  # KHOA  #FIXME:
 NIA_work = 'ripcurrent_100p'  #FIXME: meta file name 변경용
@@ -13,53 +13,41 @@ root_path = f'./datasets/{study}/'
 nia_csv_base = True # False : json file 내 날짜로 instance 생성
 year = 'allYear'  # data read할 csv파일
 
+model = 'DNN'
+
+test_mode = False #FIXME: Test mode면 training 진행 안됨
+gpu_idx = '0' #FIXME:
+seq_len = 32
+pred_len = 16
+
 n_workers = 10
 epochs = 200
 bs = 32
 patience = 30
 lr = 0.001
 
-test_mode = False #FIXME: Test mode면 training 진행 안됨
 
 is_new_test = False
-gpu_idx = '0'  #FIXME:
+
 itv = 5  # timepoint 간격이 얼마인지에 따라서 인덱싱 달리
 
 # TODO: ROI 리스트를 config로 넘겨서 onehot vector (output길이 자르는거까지) 길이 정보 제공
-seq_len = 32
-pred_len = 16
+in_dim = 11+5  # n_feature + 5 one-hot
+
 # ===================================================
 
-if study == 'KHOA':
-    port_list = ['Busan', 'NBusan', 'Incheon', 'PTDJ', 'Gunsan', 'Daesan', 
-                 'Mokpo', 'Yeosu', 'Haeundae', 'Ulsan', 'Pohang']
-    port_num_dict = {
-        'Busan':'SF_0001', 'NBusan':'SF_0002', 'Incheon':'SF_0003', 
-        'PTDJ':'SF_0004', 'Gunsan':'SF_0005', 'Daesan':'SF_0006', 
-        'Mokpo':'SF_0007', 'Yeosu':'SF_0008', 'Haeundae':'SF_0009', 
-        'Ulsan':'SF_0010', 'Pohang':'SF_0011'}
-    port_list = ['Incheon']
-    
-elif study == 'NIA':
-    # port_list = ['Haeundae']
-    # port_num_dict = {
-    #     'Haeundae':'SF_0009'}
-    port_list = ['AllPorts']
+port_list = ['AllPorts']
+fname = f'obs_qc'
+
 
 for port in port_list:
     print('\n\n')
-    print('='*85)
-    print('|',' '*25, f' ***{study}*** [{port}] Start !',' '*25,'|')
-    print('='*85)
+    print('='*80)
+    print('|',' '*24, f' ***[ {port} ]*** Start !',' '*23,'|')
+    print('='*80)
 
-    if study == 'KHOA':
-        # fname = f'{port}_last_y.csv'
-        fname = f'{port_num_dict[port]}_last_1h.pkl'
-    elif study == 'NIA':
-        fname = f'obs_qc'
-
-    parser = argparse.ArgumentParser(description=f'SCINet on {study} dataset')
-    parser.add_argument('--model', type=str, required=False, default=f'SCINet_{study}_{port}', help='model of the experiment')
+    parser = argparse.ArgumentParser(description=f'{model} on {study} dataset')
+    parser.add_argument('--model', type=str, required=False, default=f'{model}_{study}_{port}', help='model of the experiment')
     ### -------  dataset settings --------------
     parser.add_argument('--NIA_work', type=str, required=False, default=NIA_work, help='work name of NIA')
     parser.add_argument('--data', type=str, required=False, default=study, help='name of dataset')
@@ -82,9 +70,10 @@ for port in port_list:
     parser.add_argument('--gpu', type=int, default=1, help='gpu')
     parser.add_argument('--use_multi_gpu', action='store_true', help='use multiple gpus', default=False)
     parser.add_argument('--devices', type=str, default=gpu_idx,help='device ids of multile gpus')
-                                                                                    
-    ### -------  input/output length settings --------------                                                                            
-    parser.add_argument('--seq_len', type=int, default=seq_len, help='input sequence length of SCINet encoder, look back window')
+
+        ### -------  input/output length and 'number of feature' settings --------------                                                                            
+    parser.add_argument('--in_dim', type=int, default=in_dim, help='number of input features')
+    parser.add_argument('--seq_len', type=int, default=seq_len, help='input sequence length of model encoder, look back window')
     # parser.add_argument('--label_len', type=int, default=48, help='start token length of Informer decoder')  # input, label곂치는걸 원치 않으므로 안씀
     parser.add_argument('--pred_len', type=int, default=pred_len, help='prediction sequence length, horizon')
     parser.add_argument('--concat_len', type=int, default=0)
@@ -104,7 +93,7 @@ for port in port_list:
     parser.add_argument('--lradj', type=int, default=1,help='adjust learning rate')
     parser.add_argument('--use_amp', action='store_true', help='use automatic mixed precision training', default=False)
     parser.add_argument('--save', type=bool, default =False, help='save the output results')
-    parser.add_argument('--model_name', type=str, default='SCINet')
+    parser.add_argument('--model_name', type=str, default=f'{model}')
     parser.add_argument('--resume', type=bool, default=False)
     parser.add_argument('--evaluate', type=bool, default=test_mode)  # only when you finished trainig
 
@@ -121,7 +110,7 @@ for port in port_list:
     parser.add_argument('--stacks', type=int, default=2, help='1 stack or 2 stacks')
     parser.add_argument('--num_decoder_layer', type=int, default=1)
     parser.add_argument('--RIN', type=bool, default=False)
-    parser.add_argument('--decompose', type=bool,default=True)
+    parser.add_argument('--decompose', type=bool, default=True)
 
     args = parser.parse_args()
 
@@ -149,13 +138,15 @@ for port in port_list:
             args.model,args.data, args.seq_len, args.pred_len,args.lr,
             args.batch_size,args.hidden_size,args.stacks, args.levels,args.dropout,args.inverse)
 
-    exp = Experiment(args)  # set experiments
+    exp = Experiment(args)  # set experiment object
+
     if not args.evaluate:
         print('Start training {}'.format(setting))
         exp.train(setting)
 
     print('Start Testing {}'.format(setting))
     acc, f1, acc_1h, f1_1h = exp.test(setting)    
+
 
     print('*'*41)
     print(f'Final Performance :\n'\

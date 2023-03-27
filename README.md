@@ -6,13 +6,19 @@ This project is released under the [Apache 2.0 license](LICENSE).
 
 ## Get started
 
-### SCINet model
-figure
+### Experimented model
+* SCINet
+* MLP
+* LSTM
+* Transformer
+
+
+### Explainable rip prediction model
+T.B.D.
+
 
 ### Requirements
-
 Install the required package first:
-
 ```
 cd SCINet
 conda create -n scinet python=3.8
@@ -39,4 +45,3 @@ datasets/
 ```
 python run_NIA.py --train_epochs 200 --batch_size 32 --patience 30 --lr 1e-3 --devices 0
 ```
-

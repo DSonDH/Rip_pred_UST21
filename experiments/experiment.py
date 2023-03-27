@@ -14,6 +14,8 @@ from data_process import (NIA_KHOA_data_loader_csvOnly,
                           NIA_KHOA_data_loader_jsonRead)
 from experiments.exp_basic import Exp_Basic
 from metrics.NIA_KHOA_metrics import metric, score_in_1h
+
+from models.DNN import DNN
 from models.SCINet import SCINet
 from models.SCINet_decompose import SCINet_decomp
 from utils.tools import (EarlyStopping, adjust_learning_rate, load_model,
@@ -24,47 +26,39 @@ class Experiment(Exp_Basic):
     def __init__(self, args):
         super(Experiment, self).__init__(args)
     
+
     def _build_model(self):
-        
-        # FIXME: 숫자 config에서 받도록
-        in_dim = 11+5  # n_feature + 5 one-hot
-        
-        if self.args.decompose:
+        if self.args.model_name == 'DNN':
+            model = DNN(
+                        in_features
+                    )
+        elif self.args.model_name == 'CNN':
+            ...
+        elif self.args.model_name == 'RNN':
+            ...
+        elif self.args.model_name == 'SCINet':  # and self.args.decompose:
             model = SCINet_decomp(
-                output_len=self.args.pred_len,
-                input_len=self.args.seq_len,
-                input_dim= in_dim,
-                hid_size = self.args.hidden_size,
-                num_stacks=self.args.stacks,
-                num_levels=self.args.levels,
-                # num_decoder_layer = self.args.num_decoder_layer,
-                concat_len = self.args.concat_len,
-                groups = self.args.groups,
-                kernel = self.args.kernel,
-                dropout = self.args.dropout,
-                single_step_output_One = self.args.single_step_output_One,
-                positionalE = self.args.positionalEcoding,
-                modified = True,
-                RIN=self.args.RIN)
-        else:
-            model = SCINet(
-                output_len = self.args.pred_len,
-                input_len = self.args.seq_len,
-                input_dim = in_dim,
-                hid_size = self.args.hidden_size,
-                num_stacks = self.args.stacks,
-                num_levels = self.args.levels,
-                num_decoder_layer = self.args.num_decoder_layer,
-                concat_len = self.args.concat_len,
-                groups = self.args.groups,
-                kernel = self.args.kernel,
-                dropout = self.args.dropout,
-                single_step_output_One = self.args.single_step_output_One,
-                positionalE = self.args.positionalEcoding,
-                modified = True,
-                RIN=self.args.RIN)
-        # print(model)
+                        output_len=self.args.pred_len,
+                        input_len=self.args.seq_len,
+                        input_dim= self.args.in_dim,
+                        hid_size=self.args.hidden_size,
+                        num_stacks=self.args.stacks,
+                        num_levels=self.args.levels,
+                        concat_len=self.args.concat_len,
+                        groups=self.args.groups,
+                        kernel=self.args.kernel,
+                        dropout=self.args.dropout,
+                        single_step_output_One=self.args.single_step_output_One,
+                        positionalE=self.args.positionalEcoding,
+                        modified=True,
+                        RIN=self.args.RIN
+                    )
+        elif self.args.model_name == 'Transformer':
+            ...
+
+
         return model.double()
+
 
     def _get_data(self, flag):
         args = self.args
@@ -92,17 +86,20 @@ class Experiment(Exp_Basic):
 
         print(flag, len(data_set))
         data_loader = DataLoader(
-            data_set,
-            batch_size = batch_size,
-            shuffle = shuffle_flag,
-            num_workers = args.num_workers,
-            drop_last = drop_last)
+                          data_set,
+                          batch_size=batch_size,
+                          shuffle=shuffle_flag,
+                          num_workers=args.num_workers,
+                          drop_last=drop_last
+                      )
         return data_set, data_loader
+
 
     def _select_optimizer(self):
         model_optim = optim.Adam(self.model.parameters(), lr=self.args.lr)
         return model_optim
     
+
     def _select_criterion(self, losstype):
         if losstype == "mse":
             criterion = nn.MSELoss()
@@ -113,6 +110,7 @@ class Experiment(Exp_Basic):
         else:
             criterion = nn.L1Loss()
         return criterion
+
 
     def valid(self, valid_data, valid_loader, criterion):
         self.model.eval()
@@ -181,15 +179,19 @@ class Experiment(Exp_Basic):
 
         return total_loss
 
+
     def train(self, setting):
         train_data, train_loader = self._get_data(flag = 'train')
         valid_data, valid_loader = self._get_data(flag = 'val')
+
         if self.args.evaluate:
             test_data, test_loader = self._get_data(flag = 'test')
+        
         path = os.path.join(self.args.checkpoints, setting)
         print(path)
         if not os.path.exists(path):
             os.makedirs(path)
+        
         writer = SummaryWriter(f'event/run_{self.args.data}/{self.args.model_name}')
         
 
@@ -276,6 +278,7 @@ class Experiment(Exp_Basic):
         best_model_path = path+'/'+'checkpoint.pth'
         self.model.load_state_dict(torch.load(best_model_path))
         return self.model
+
 
     def test(self, setting, evaluate=False):
         test_data, test_loader = self._get_data(flag='test')
