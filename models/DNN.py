@@ -46,6 +46,8 @@ class DNN(nn.Module):
     def forward(self, x):
         # PE = self.get_position_encoding(x)
 
+        # x = x.reshape((-1, x.shape[1] * x.shape[2]))
+
         hidden = self.layers(x)
         out = self.output(hidden)
         

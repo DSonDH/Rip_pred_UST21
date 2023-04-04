@@ -16,12 +16,12 @@ year = 'allYear'  # data read할 csv파일
 model = 'DNN'
 
 test_mode = False #FIXME: Test mode면 training 진행 안됨
-gpu_idx = '0' #FIXME:
+gpu_idx = '1' #FIXME:
 seq_len = 32
 pred_len = 16
 
 n_workers = 10
-epochs = 200
+epochs = 3
 bs = 32
 patience = 30
 lr = 0.001

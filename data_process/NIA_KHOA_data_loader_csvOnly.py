@@ -235,11 +235,13 @@ class Dataset_NIA_KHOA(Dataset):
             self.X = X
             self.y = y
 
+
     def __getitem__(self, index):
         return self.X[index, ...], self.y[index, ...]
+    
     
     def __len__(self):
         return len(self.X)
         
-    def inverse_transform(self, data):
-        return self.scaler.inverse_transform(data)
+    def inverse_transform(self, data, is_dnn=False):
+        return self.scaler.inverse_transform(data, is_dnn)
