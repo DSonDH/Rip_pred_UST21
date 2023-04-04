@@ -30,7 +30,13 @@ class Experiment(Exp_Basic):
     def _build_model(self):
         if self.args.model_name == 'DNN':
             model = DNN(
-                        in_features
+                        features=[
+                                  (self.args.in_dim, 100), 
+                                  (100, 1000), 
+                                  (1000, 1000), 
+                                  (1000, 100)
+                                 ],
+                        pred_len=self.args.pred_len
                     )
         elif self.args.model_name == 'CNN':
             ...
@@ -123,7 +129,7 @@ class Experiment(Exp_Basic):
         mid_scales = []
 
         for i, (batch_x, batch_y) in enumerate(valid_loader):
-            pred, pred_scale, mid, mid_scale, true, true_scale = self._process_one_batch_SCINet(
+            pred, pred_scale, mid, mid_scale, true, true_scale = self._process_one_batch(
                 valid_data, batch_x, batch_y)
 
             if self.args.stacks == 1:
@@ -222,7 +228,7 @@ class Experiment(Exp_Basic):
                 iter_count += 1
                 
                 model_optim.zero_grad()
-                pred, pred_scale, mid, mid_scale, true, true_scale = self._process_one_batch_SCINet(
+                pred, pred_scale, mid, mid_scale, true, true_scale = self._process_one_batch(
                     train_data, batch_x, batch_y)
 
                 if self.args.stacks == 1:
@@ -299,7 +305,7 @@ class Experiment(Exp_Basic):
 
         for i, (batch_x,batch_y) in enumerate(test_loader):
         # for i, (batch_x,batch_y,batch_x_mark,batch_y_mark) in enumerate(test_loader):
-            pred, pred_scale, mid, mid_scale, true, true_scale = self._process_one_batch_SCINet(
+            pred, pred_scale, mid, mid_scale, true, true_scale = self._process_one_batch(
                 test_data, batch_x, batch_y)
 
             preds.append(pred.detach().cpu().numpy())
@@ -379,33 +385,39 @@ class Experiment(Exp_Basic):
         return acc, f1, acc_1h, f1_1h
 
 
-    def _process_one_batch_SCINet(self, dataset_object, batch_x, batch_y):
+    def _process_one_batch(self, dataset_object, batch_x, batch_y):
         batch_x = batch_x.double().cuda()
         batch_y = batch_y.double()
 
-        if self.args.stacks == 1:
-            outputs = self.model(batch_x)
-        elif self.args.stacks == 2:
-            outputs, mid = self.model(batch_x)
-        else:
-            print('Error!')
-        # stack은 모델구초 층 수
         f_dim = 0
         batch_y = batch_y[:,-self.args.pred_len:,f_dim:].cuda()
-        
-        #FIXME: Except one hot encoding
-        outputs = outputs[..., :-5]
-        mid = mid[..., :-5]
-        batch_y = batch_y[..., :-5]
 
-        outputs_scaled = dataset_object.inverse_transform(outputs)
-        if self.args.stacks == 2:
+        if self.args.model_name == 'SCINet':
+            outputs, mid = self.model(batch_x)
+            
+            assert(self.args.stacks == 2, 
+                   "SCINet stack size is supposed to be larger than 1")
+
+            # Except one hot encoding
+            outputs = outputs[..., :-5]
+            mid = mid[..., :-5]
+            batch_y = batch_y[..., :-5]
+
+            outputs_scaled = dataset_object.inverse_transform(outputs)
             mid_scaled = dataset_object.inverse_transform(mid)
-        batch_y_scaled = dataset_object.inverse_transform(batch_y)
+            batch_y_scaled = dataset_object.inverse_transform(batch_y)
 
-        if self.args.stacks == 1:
-            return outputs[:,:,-1], outputs_scaled[:,:,-1], 0, 0, batch_y[:,:,-1], batch_y_scaled[:,:,-1]
-        elif self.args.stacks == 2:
             return outputs[:,:,-1], outputs_scaled[:,:,-1], mid[:,:,-1], mid_scaled[:,:,-1], batch_y[:,:,-1], batch_y_scaled[:,:,-1]
+            
         else:
-            print('Error!')
+            outputs = self.model(batch_x)
+
+            # Except one hot encoding
+            outputs = outputs[..., :-5]
+            batch_y = batch_y[..., :-5]
+
+            outputs_scaled = dataset_object.inverse_transform(outputs)
+            batch_y_scaled = dataset_object.inverse_transform(batch_y)
+
+            return outputs[:,:,-1], outputs_scaled[:,:,-1], 0, 0, batch_y[:,:,-1], batch_y_scaled[:,:,-1]
+            

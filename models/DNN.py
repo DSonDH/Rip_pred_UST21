@@ -1,38 +1,35 @@
-
+from collections import OrderedDict
 import torch.nn.functional as F
 from torch import nn
 import torch
-import numpy as np
 
 
 class DNN(nn.Module):
     def __init__(self, 
-                 in_features,
-                 out_features, 
-                 input_len,
-                 pred_len, 
+                 features: list, 
+                 pred_len: int, 
                  dropout = 0.5,
                  positionalE = False, 
                 ):
         super(DNN, self).__init__()
 
+        # FIXME: 
+        # Batchnorm or LayerNorm
+        # dropout or no dropout
+        # feature variable 한개의 list 변수로 제어 ? 
+        
         # input (b, t, f, c)
-        self.fc1 = nn.Linear(in_features, out_features)
-        self.bn1 = nn.BatchNorm1d(out_features)
-        self.relu = nn.LeakyReLU()
-
-        self.fc2 = nn.Linear(out_features, out_features2)
-        self.bn1 = nn.BatchNorm1d(out_features2)
-        self.relu = nn.LeakyReLU()
-
-        self.fc2 = nn.Linear(out_features2, out_features3)
-        self.bn1 = nn.BatchNorm1d(out_features3)
-        self.relu = nn.LeakyReLU()
-
-        self.fc2 = nn.Linear(out_features3, pred_len)
-        self.bn1 = nn.BatchNorm1d(pred_len)
-        self.relu = nn.LeakyReLU()
-
+        layers = OrderedDict()
+        for idx, params in enumerate(features):
+            layer_name = f'linear_{idx + 1}'
+            layers[layer_name] = nn.Linear(*params)
+            activation_name = f'LeakyReLU_{idx + 1}'
+            layers[activation_name] = nn.LeakyReLU()
+            
+        self.layers = nn.Sequential(layers)
+        last_dim = features[-1][-1]
+        self.output = nn.Linear(last_dim, pred_len)
+        
 
     def get_position_encoding(self, x):
         max_length = x.size()[1]
@@ -47,14 +44,9 @@ class DNN(nn.Module):
         return signal
     
     def forward(self, x):
-        PE = self.get_position_encoding(x)
+        # PE = self.get_position_encoding(x)
 
-        out = self.fc1(x)
-        out = self.relu(out)
-        out = self.fc2(out)
-        out = self.relu(out)
-        out = self.fc3(out)
-        out = self.relu(out)
-        out = self.fc4(out)
-
+        hidden = self.layers(x)
+        out = self.output(hidden)
+        
         return out
