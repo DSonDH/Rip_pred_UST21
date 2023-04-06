@@ -82,6 +82,8 @@ class Dataset_NIA_KHOA(Dataset):
         get index for training loop using final train dataset
         """
 
+        #TODO : 다른 시계열 연구에서는 normalization 어떻게 하는지, cross validaton split어찌 하는 지 조사
+
         self.scaler = StandardScaler() #MinMaxScaler()
         site_names = ['DC', 'HD', 'JM', 'NS', 'SJ']
         angle_inci_beach = [245, 178, 175, 47, 142]
@@ -120,15 +122,15 @@ class Dataset_NIA_KHOA(Dataset):
                     '''
                     if self.save_meta_csv:
                         # 이안류 라벨, 관측자료 nan 제거함 : 관측자료 결측은 일단 무시
-                        # noNanMask = ~df['이안류라벨'].isna()
+                        # noNanMask = ~df['RipLabel'].isna()
                         # df2 = df[noNanMask]
                         df2 = df.dropna(axis=0)
                         df2.to_csv(f'datasets/NIA/meta_csv/{site}_dropNaN.csv',
                                    encoding='euc-kr')
                     
                     # print label ratio
-                    n1 = sum(df['이안류라벨'] == 1)
-                    n0 = sum(df['이안류라벨'] == 0)
+                    n1 = sum(df['RipLabel'] == 1)
+                    n0 = sum(df['RipLabel'] == 0)
                     print(f'N_raw instance = {n1 + n0}')
                     print(f'N_0 instance = {n0}, N_1 instance = {n1}')
                     print(f'N1 / N_0 ratio = {n1 / (n0 + n1) * 100:.2f} \n')

@@ -39,7 +39,6 @@ in_dim = 11+5  # n_feature + 5 one-hot
 port_list = ['AllPorts']
 fname = f'obs_qc'
 
-
 for port in port_list:
     print('\n\n')
     print('='*80)

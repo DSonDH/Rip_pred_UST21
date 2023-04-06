@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
 warnings.filterwarnings('ignore')
-from data_process import (NIA_KHOA_data_loader_csvOnly,
+from data_process import (NIA_KHOA_data_loader_csvOnly_YearSplit,
                           NIA_KHOA_data_loader_jsonRead)
 from experiments.exp_basic import Exp_Basic
 from metrics.NIA_KHOA_metrics import metric, score_in_1h
@@ -70,7 +70,7 @@ class Experiment(Exp_Basic):
     def _get_data(self, flag):
         args = self.args
         if args.nia_csv_base:
-            module = NIA_KHOA_data_loader_csvOnly.Dataset_NIA_KHOA
+            module = NIA_KHOA_data_loader_csvOnly_YearSplit.Dataset_NIA_KHOA
         else:
             module = NIA_KHOA_data_loader_jsonRead.Dataset_NIA_KHOA
             
