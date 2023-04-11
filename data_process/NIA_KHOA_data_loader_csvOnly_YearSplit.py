@@ -21,12 +21,12 @@ class Dataset_NIA_KHOA(Dataset):
                  size: List[int, int]=None,
                  data_path: str='',
                  args: dict=None
-                 ) -> None:
+                ) -> None:
 
         if size == None:
-            self.seq_len = 2*8*2  # lagging len 
+            self.seq_len = 2 * 8 * 2  # lagging len 
             # !!!! 모델에 2^n 제곱 길이만 들어갈 수 있으므로 10분간격 시간단위(6의배수)는 불가능
-            self.pred_len = 8*2  
+            self.pred_len = 8 * 2  
             # !!!! 모델에 2^n 제곱 길이만 들어갈 수 있으므로 10분간격 시간단위(6의배수)는 불가능
         else:
             self.seq_len = size[0]
@@ -43,7 +43,6 @@ class Dataset_NIA_KHOA(Dataset):
         self.data = data
         self.port = port
         self.args = args
-        self.save_meta_csv = False  # FIXME:
 
         self.__read_data__()
 
@@ -52,16 +51,14 @@ class Dataset_NIA_KHOA(Dataset):
                 csv_pth: str, 
                 site: str, 
                 angle_inci_beach: int
-                ) -> pd.DataFrame:
-
-        '''nan filling 작업, wave direction 보정 작업'''
+               ) -> pd.DataFrame:
 
         df = pd.read_csv(f'{csv_pth}/{site}-total.csv', encoding='euc-kr')
         df = df.iloc[:,1:]
         df['ob time'] = pd.to_datetime(df['ob time'])
         df = df.set_index('ob time')
         df = df.fillna(method='ffill', limit=2).fillna(method='bfill', limit=2)
-        df['wave direction'] -= angle_inci_beach
+        df['wave direction'] -= angle_inci_beach  # wave direction 보정
         return df
                     
 

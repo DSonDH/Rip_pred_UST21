@@ -1,15 +1,16 @@
-# SCINet
+# Rip current prediction project
 
-## SCINet License
+## License
 This project is released under the [Apache 2.0 license](LICENSE).
 
 
 ## Get started
 
 ### Experimented model
-* SCINet
+* Machine Learning Models
 * MLP
-* LSTM
+* 1DCNN
+* RNN
 * Transformer
 
 

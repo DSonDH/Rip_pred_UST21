@@ -311,7 +311,12 @@ class Experiment(Exp_Basic):
         return acc, f1, acc_1h, f1_1h
         
 
-    def _process_one_batch(self, dataset_object, batch_x, batch_y, is_dnn=False):
+    def _process_one_batch(self, 
+                           dataset_object, 
+                           batch_x, 
+                           batch_y
+                          ) -> tuple:
+        
         batch_x = batch_x.double().cuda()
         batch_y = batch_y.double()
 
@@ -336,7 +341,6 @@ class Experiment(Exp_Basic):
                    mid_scaled[:,:,-1], batch_y[:,:,-1], batch_y_scaled[:,:,-1]
             
         elif self.args.model_name == 'DNN':
-            is_dnn = True
             batch_x = batch_x.reshape((-1, batch_x.shape[1] * batch_x.shape[2]))
             outputs = self.model(batch_x)
             batch_y = batch_y[..., 10]
