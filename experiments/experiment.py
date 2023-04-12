@@ -10,13 +10,12 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
 warnings.filterwarnings('ignore')
-from data_process import (NIA_KHOA_data_loader_csvOnly_YearSplit,
-                          NIA_KHOA_data_loader_jsonRead)
+from data_process import (NIA_data_loader_csvOnly_YearSplit,
+                          NIA_data_loader_jsonRead)
 from experiments.exp_basic import Exp_Basic
-from metrics.NIA_KHOA_metrics import metric, score_in_1h
+from metrics.NIA_metrics import metric, score_in_1h
 
 from models.DNN import DNN
-from models.SCINet import SCINet
 from models.SCINet_decompose import SCINet_decomp
 from utils.tools import (EarlyStopping, adjust_learning_rate, load_model,
                          save_model)
@@ -25,10 +24,13 @@ from utils.tools import (EarlyStopping, adjust_learning_rate, load_model,
 class Experiment(Exp_Basic):
     def __init__(self, args):
         super(Experiment, self).__init__(args)
-        self.iter_count = 100;
+        self.print_per_iter = 100;
+
 
     def _build_model(self):
-        if self.args.model_name == 'DNN':
+        if self.args.model_name == 'Prophet':
+            print()
+        elif self.args.model_name == 'DNN':
             model = DNN(
                         features=[
                                   (self.args.seq_len * self.args.in_dim, 512), 
@@ -63,16 +65,15 @@ class Experiment(Exp_Basic):
         elif self.args.model_name == 'Transformer':
             ...
 
-
         return model.double()
 
 
     def _get_data(self, flag):
         args = self.args
         if args.nia_csv_base:
-            module = NIA_KHOA_data_loader_csvOnly_YearSplit.Dataset_NIA_KHOA
+            module = NIA_data_loader_csvOnly_YearSplit.Dataset_NIA
         else:
-            module = NIA_KHOA_data_loader_jsonRead.Dataset_NIA_KHOA
+            module = NIA_data_loader_jsonRead.Dataset_NIA
             
         data_set = module(
             root_path = args.root_path,
@@ -170,8 +171,8 @@ class Experiment(Exp_Basic):
                                      
                 train_loss.append(loss.item())
                 
-                if (i + 1) % self.iter_count == 0:
-                    speed = (time.time() - time_now) / self.iter_count
+                if (i + 1) % self.print_per_iter == 0:
+                    speed = (time.time() - time_now) / self.print_per_iter
                     print("\titers: {0}, epoch: {1} | loss: {2:.7f} | speed: {3:.4f}s/iter".format(
                         i + 1, epoch + 1, loss.item(), speed))
                     # left_time = speed*((self.args.train_epochs - epoch)*train_steps - i)

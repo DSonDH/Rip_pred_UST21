@@ -19,7 +19,7 @@ def add_one_hot(df, site, site_names = ['DC', 'HD', 'JM', 'NS', 'SJ']):
     return df
 
 
-class Dataset_NIA_KHOA(Dataset):
+class Dataset_NIA(Dataset):
     def __init__(self, root_path, data, port=None, flag='train', size=None, 
                  features='M', data_path='', scale=True):
     

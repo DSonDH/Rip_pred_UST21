@@ -11,7 +11,7 @@ from utils.tools import StandardScaler
 warnings.filterwarnings('ignore')
 
 
-class Dataset_NIA_KHOA(Dataset):
+class Dataset_NIA(Dataset):
     def __init__(self, 
                  root_path: str,
                  NIA_work: str,
@@ -95,7 +95,7 @@ class Dataset_NIA_KHOA(Dataset):
 
         self.scaler = StandardScaler() #MinMaxScaler()
         site_names = ['DC', 'HD', 'JM', 'NS', 'SJ']
-        angle_inci_beach = [245, 178, 175, 47, 142]
+        angle_inci_beach = [245, 178, 175, 47, 142]  # incidence angle of each beach
         year = self.args.year
 
         if not os.path.exists(

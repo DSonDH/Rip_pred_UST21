@@ -1,43 +1,49 @@
 import argparse
 import torch
-
-# from torch.utils.tensorboard import SummaryWriter
 from experiments.experiment import Experiment
 
 # ===================================================
-# configs for pipeline setting
+# configs usually changed
 
-study = 'NIA'  # KHOA  #FIXME:
-NIA_work = 'ripcurrent_100p'  #FIXME: meta file name 변경용
-root_path = f'./datasets/{study}/'
-nia_csv_base = True # False : json file 내 날짜로 instance 생성
-year = 'allYear'  # data read할 csv파일
-
-model = 'DNN'
+model = 'Prophet'
+# Prophet
+# RF
+# XGB
+# MLPvanilla
+# SimpleLinear
+# LightTS
+# Simple1DCNN
+# SCINET
+# LSTM
+# Transformer
+# Informer
 
 test_mode = False #FIXME: Test mode면 training 진행 안됨
 gpu_idx = '1' #FIXME:
+
+# model setting
 seq_len = 32
 pred_len = 16
+itv = 5  # timepoint 간격이 얼마인지에 따라서 인덱싱 달리
+# TODO: 11 + 5에서 onehot 효과 없음이 보여지면 11개 feature만 쓰도록.
+in_dim = 11 + 5  # n_feature + 5 one-hot
 
+# trainig setting
 n_workers = 10
 epochs = 3
 bs = 32
 patience = 30
 lr = 0.001
-
-
-is_new_test = False
-
-itv = 5  # timepoint 간격이 얼마인지에 따라서 인덱싱 달리
-
-# TODO: ROI 리스트를 config로 넘겨서 onehot vector (output길이 자르는거까지) 길이 정보 제공
-in_dim = 11+5  # n_feature + 5 one-hot
-
+# is_new_test = False
 # ===================================================
-
+study = 'NIA'
+NIA_work = 'ripcurrent_100p'  # data 전처리 meta file 저장이름 변경용
+root_path = f'./datasets/{study}/'
+nia_csv_base = True # False : json file 내 날짜로 instance 생성
+year = 'allYear'  # data read할 csv파일
 port_list = ['AllPorts']
 fname = f'obs_qc'
+
 
 for port in port_list:
     print('\n\n')
@@ -52,7 +58,7 @@ for port in port_list:
     parser.add_argument('--data', type=str, required=False, default=study, help='name of dataset')
     parser.add_argument('--year', type=str, required=False, default=year, help='Dataset year')
     parser.add_argument('--nia_csv_base', type=bool, required=False, default=nia_csv_base, help='gen data from csv or json')
-    parser.add_argument('--is_new_test', type=bool, required=False, default=is_new_test, help='need to make new test save file?')
+    # parser.add_argument('--is_new_test', type=bool, required=False, default=is_new_test, help='need to make new test save file?')
     parser.add_argument('--itv', type=int, required=False, default=itv, help='name of dataset')
     parser.add_argument('--port', type=str, required=False, default=port, help='name of port')
     parser.add_argument('--root_path', type=str, default=root_path, help='root path of the data file')
@@ -134,6 +140,7 @@ for port in port_list:
             args.model,args.data, args.seq_len, args.pred_len,args.lr,
             args.batch_size,args.hidden_size,args.stacks, args.levels,args.dropout,args.inverse)
 
+    # train / val / test defined function
     exp = Experiment(args)  # set experiment object
 
     if not args.evaluate:
