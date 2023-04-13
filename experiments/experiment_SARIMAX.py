@@ -10,6 +10,8 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 import requests
 from io import BytesIO
+import itertools
+
 
 # Register converters to avoid warnings
 pd.plotting.register_matplotlib_converters()
@@ -28,10 +30,26 @@ exog = sm.add_constant(data.loc['1959':'1981', 'm2'])
 nobs = endog.shape[0]
 
 # Fit the model
-mod = sm.tsa.statespace.SARIMAX(endog.loc[:'1978-01-01'], 
-                                exog=exog.loc[:'1978-01-01'], 
-                                order=(1, 0, 1)
-                               )
+#TODO: order 3개 성부 grid search
+p = range(0, 3)
+d = range(0, 3)
+q = range(0, 3)
+
+pdqs = list(itertools.product(p, d, q))
+best_aic = np.inf
+
+for pdq in pdqs:
+    model = sm.tsa.statespace.SARIMAX(endog.loc[:'1978-01-01'], 
+                                    exog=exog.loc[:'1978-01-01'], 
+                                    order=pdq
+                                )
+    fit_res = model.fit(disp=False, maxiter=250)
+    if fit_res.aic < best_aic:
+        best_aic = fit_res.aic
+        best_pdq = pdq
+        best_model = model
+        best_fit_res = fit_res
+
 '''
 order : iterable or iterable of iterables, optional
     The (p,d,q) order of the model for the number of AR parameters,
@@ -59,13 +77,14 @@ trend : str{'n','c','t','ct'} or iterable, optional
     iterable defining the non-zero polynomial exponents to include, in
     increasing order. For example, `[1,1,0,1]` denotes
     :math:`a + bt + ct^3`. Default is to not include a trend component.
+seasonal_order: Default is no seasonal effect. 이안류 개별 instance들은 주기성
+    없으니까 이 옵션은 꺼야함 !!!
 '''
 
-fit_res = mod.fit(disp=False, maxiter=250)
-print(fit_res.summary())
+print(best_fit_res.summary())
 
 #%% In-sample one-step-ahead predictions
-res = mod.filter(fit_res.params)
+res = best_model.filter(best_fit_res.params)
 
 predict = res.get_prediction()
 predict_ci = predict.conf_int()
