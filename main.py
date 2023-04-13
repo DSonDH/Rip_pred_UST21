@@ -1,12 +1,14 @@
 import argparse
 import torch
-from experiments.experiment import Experiment
+from experiments.experiment import Experiment_DL
+from experiments.experiment_SARIMAX import Experiment_SARIMAX
+from experiments.experiment_ML import Experiment_ML
 
 # ===================================================
 # configs usually changed
 
-model = 'Prophet'
-# Prophet
+model = 'SARIMAX'
+# SARIMAX
 # RF
 # XGB
 # MLPvanilla
@@ -18,7 +20,7 @@ model = 'Prophet'
 # Transformer
 # Informer
 
-test_mode = False #FIXME: Test mode면 training 진행 안됨
+do_train = True #FIXME:
 gpu_idx = '1' #FIXME:
 
 # model setting
@@ -97,7 +99,7 @@ for port in port_list:
     parser.add_argument('--save', type=bool, default =False, help='save the output results')
     parser.add_argument('--model_name', type=str, default=f'{model}')
     parser.add_argument('--resume', type=bool, default=False)
-    parser.add_argument('--evaluate', type=bool, default=test_mode)  # only when you finished trainig
+    parser.add_argument('--do_train', type=bool, default=do_train)  # only when you finished trainig
 
     ### -------  model settings --------------  
     parser.add_argument('--hidden-size', default=1, type=float, help='hidden channel of module')
@@ -137,22 +139,43 @@ for port in port_list:
     torch.backends.cudnn.enabled = True
 
     setting = '{}_{}_sl{}_pl{}_lr{}_bs{}_hid{}_s{}_l{}_dp{}_inv{}'.format(
-            args.model,args.data, args.seq_len, args.pred_len,args.lr,
-            args.batch_size,args.hidden_size,args.stacks, args.levels,args.dropout,args.inverse)
+                    args.model,args.data, args.seq_len, args.pred_len,args.lr,
+                    args.batch_size,args.hidden_size,args.stacks, 
+                    args.levels,args.dropout,args.inverse)
 
     # train / val / test defined function
-    exp = Experiment(args)  # set experiment object
+    if args.model_name == 'SARIMAX':
+        from data_process import (NIA_data_loader_csvOnly_YearSplit,
+                                NIA_data_loader_jsonRead)
+        if args.nia_csv_base:
+            module = NIA_data_loader_csvOnly_YearSplit.Dataset_NIA
+        else:
+            module = NIA_data_loader_jsonRead.Dataset_NIA
 
-    if not args.evaluate:
-        print('Start training {}'.format(setting))
-        exp.train(setting)
+        data_set = module(
+            root_path = args.root_path,
+            NIA_work = args.NIA_work,
+            data = args.data,
+            port = args.port,
+            data_path = args.data_path,
+            flag = 'test',
+            size = [args.seq_len, args.pred_len],
+            args = args
+        )
+        acc, f1, acc_1h, f1_1h = Experiment_SARIMAX(data_set)
 
-    print('Start Testing {}'.format(setting))
-    acc, f1, acc_1h, f1_1h = exp.test(setting)    
+    elif args.model_name in ['RF', 'XGB']:
+         acc, f1, acc_1h, f1_1h = Experiment_ML(setting)
 
+    else: # DL models
+        exp_DL = Experiment_DL(args)  # set experiment object
+        if args.do_train:
+            exp_DL.train(setting)
+        acc, f1, acc_1h, f1_1h = exp_DL.test(setting)
 
     print('*'*41)
-    print(f'Final Performance :\n'\
+    print(f'Final Performance of model {args.model_name}:\n'\
         #   f'acc:{acc}, f1:{f1},\n'\
-          f'acc_1h:{acc_1h}, f1_1h:{f1_1h}')
+        f'acc_1h:{acc_1h}, f1_1h:{f1_1h}')
     print('*'*41)
+

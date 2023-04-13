@@ -1,4 +1,4 @@
-from typing import List, Set, Dict, Tuple
+from typing import List, Set, Dict, Tuple, Union
 import os
 import warnings
 
@@ -18,7 +18,7 @@ class Dataset_NIA(Dataset):
                  data: str,
                  port: str=None, 
                  flag: str='train',
-                 size: List[int, int]=None,
+                 size: List[Union[int, int]]=None,
                  data_path: str='',
                  args: dict=None
                 ) -> None:
@@ -99,7 +99,8 @@ class Dataset_NIA(Dataset):
         year = self.args.year
 
         if not os.path.exists(
-            f'{self.root_path}/{self.NIA_work}_processed_X_{self.mode}_{year}_YearSplit.pkl'):
+            f'{self.root_path}/{self.NIA_work}_'\
+            f'processed_X_{self.mode}_{year}_YearSplit.pkl'):
             print(f'no processed {self.mode} file. start data preprocessing!! \n')
             
             csv_pth = f'{self.root_path}/obs_qc_100p'
@@ -108,13 +109,13 @@ class Dataset_NIA(Dataset):
             # TODO: 엄밀하게는 tr/val/te기간 나눠서 tr기간에 대해서만 scaler fit해야함.
             if self.mode == 'train':
                 for i, site in enumerate(site_names):
-                    df = self.load_df(csv_pth, site, year, angle_inci_beach[i])
+                    df = self.load_df(csv_pth, site, angle_inci_beach[i])
                     df_all = df if i==0 else pd.concat([df_all, df])
                 self.scaler.fit(df_all)
                 joblib.dump(
                     self.scaler, 
-                    f'{self.root_path}/{self.NIA_work}_NIA_train_\
-                        {self.port}_{year}_scaler_YearSplit.pkl'
+                    f'{self.root_path}/{self.NIA_work}_NIA_train_' \
+                    f'{self.port}_{year}_scaler_YearSplit.pkl'
                 )
 
             # Step2: loop each site to get instance and split tr/val/te = 8:1:1
@@ -124,14 +125,6 @@ class Dataset_NIA(Dataset):
                 print(f' ## processing {site} for {self.mode}')
 
                 df = self.load_df(csv_pth, site, angle_inci_beach[i])
-
-                if self.save_meta_csv:
-                    # 이안류 라벨, 관측자료 nan 제거함 : 관측자료 결측은 일단 무시
-                    # noNanMask = ~df['RipLabel'].isna()
-                    # df2 = df[noNanMask]
-                    df2 = df.dropna(axis=0)
-                    df2.to_csv(f'datasets/NIA/meta_csv/{site}_dropNaN.csv',
-                                encoding='euc-kr')
                 
                 # print label ratio
                 n1 = sum(df['RipLabel'] == 1)
@@ -143,34 +136,18 @@ class Dataset_NIA(Dataset):
                 # scaler
                 if self.mode != 'train':
                     self.scaler = joblib.load(
-                                      f'{self.root_path}/\
-                                          {self.NIA_work}_NIA_train_{self.port}\
-                                            _{year}_scaler_YearSplit.pkl'
+                                      f'{self.root_path}/'\
+                                      f'{self.NIA_work}_NIA_train_{self.port}'\
+                                      f'_{year}_scaler_YearSplit.pkl'
                                   )
                 df = self.scaler.transform(df)
 
                 instance_list = []
-                origin_idx_list = []
                 N_nan = 0
 
-                for x_start in range(self.seq_len, len(df)):
-                    y_end = x_start + self.seq_len + self.pred_len
-                    # 일단 X, y합쳐서 뽑고, 나중에 분리
-                    Xy_instance = df.iloc[x_start:y_end, :]
-                    if not Xy_instance.isnull().values.any():
-                        instance_list.append(Xy_instance.values)
-                        origin_idx_list.append(x_start)
-                    else:
-                        N_nan += 1
-
-                num_instance = len(instance_list)
-                itv = num_instance//10
-                Xy_full = np.array(instance_list)
 
                 # FIXME: train, val, test split by year.
-                idx_tr = itv * 8
-                idx_val = itv * 9
-
+                
                 if self.mode == 'train':
                     Xy = Xy_full[: idx_tr]
                 elif self.mode  == 'val':
@@ -183,7 +160,7 @@ class Dataset_NIA(Dataset):
                 len_val += len(Xy_full[idx_tr : idx_val])
                 len_te += len(Xy_full[idx_val :])
 
-                # add onehot
+                # FIXME: add onehot 효과 살펴보고, 효과 없으면 지우기
                 n_sites = len(site_names)
                 onehot = np.zeros((Xy.shape[0], Xy.shape[1], n_sites))
                 onehot[:,:,i] = 1
@@ -201,19 +178,24 @@ class Dataset_NIA(Dataset):
 
             # now save it.
             joblib.dump(X, 
-                f'{self.root_path}/{self.NIA_work}_processed_X_{self.mode}_{year}_YearSplit.pkl')
+                f'{self.root_path}/{self.NIA_work}_'\
+                f'processed_X_{self.mode}_{year}_YearSplit.pkl')
             joblib.dump(y, 
-                f'{self.root_path}/{self.NIA_work}_processed_y_{self.mode}_{year}_YearSplit.pkl')
+                f'{self.root_path}/{self.NIA_work}_'\
+                f'processed_y_{self.mode}_{year}_YearSplit.pkl')
 
         # when saved pre-processed file exist
         else:
-            print(f'I found processed {self.mode} file. skip data preprocessing!!\n')
+            print(f'Found processed {self.mode} file. skip preprocessing !!!\n')
             X = joblib.load(
-                    f'{self.root_path}/{self.NIA_work}_processed_X_{self.mode}_{year}_YearSplit.pkl')
+                    f'{self.root_path}/{self.NIA_work}_'\
+                    f'processed_X_{self.mode}_{year}_YearSplit.pkl')
             y = joblib.load(
-                    f'{self.root_path}/{self.NIA_work}_processed_y_{self.mode}_{year}_YearSplit.pkl')
+                    f'{self.root_path}/{self.NIA_work}_'\
+                    f'processed_y_{self.mode}_{year}_YearSplit.pkl')
             self.scaler = joblib.load(  # train mode만 불러야 함
-                    f'{self.root_path}/{self.NIA_work}_NIA_train_{self.port}_{year}_scaler_YearSplit.pkl')
+                    f'{self.root_path}/{self.NIA_work}_'\
+                    f'NIA_train_{self.port}_{year}_scaler_YearSplit.pkl')
         
         self.X = X
         self.y = y

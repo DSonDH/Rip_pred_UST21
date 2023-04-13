@@ -13,7 +13,7 @@ from io import BytesIO
 import itertools
 
 
-def Experiment_SARIMAX():
+def Experiment_ML():
     # Register converters to avoid warnings
     pd.plotting.register_matplotlib_converters()
     plt.rc("figure", figsize=(16,8))

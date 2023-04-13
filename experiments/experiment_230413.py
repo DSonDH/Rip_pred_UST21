@@ -1,6 +1,7 @@
 import os
 import time
 import warnings
+
 import numpy as np
 import torch
 import torch.nn as nn
@@ -24,46 +25,6 @@ class Experiment_DL(Exp_Basic):
     def __init__(self, args):
         super(Experiment_DL, self).__init__(args)
         self.print_per_iter = 100;
-
-        # train / val / test dataset and dataloader setting
-        if args.nia_csv_base:
-            module = NIA_data_loader_csvOnly_YearSplit.Dataset_NIA
-        else:
-            module = NIA_data_loader_jsonRead.Dataset_NIA
-            
-        train_set, val_set, test_set = module(
-                                          root_path = args.root_path,
-                                          NIA_work = args.NIA_work,
-                                          data = args.data,
-                                          port = args.port,
-                                          data_path = args.data_path,
-                                          size = [args.seq_len, args.pred_len],
-                                          args = args
-                                       )
-        self.train_set = train_set
-        self.val_set = val_set
-        self.test_set = test_set
-        self.train_loader = DataLoader(
-                                train_set,
-                                batch_size=args.batch_size,
-                                shuffle=True,
-                                num_workers=args.num_workers,
-                                drop_last=True
-                            )
-        self.val_loader =   DataLoader(
-                                val_set,
-                                batch_size=args.batch_size,
-                                shuffle=True,
-                                num_workers=args.num_workers,
-                                drop_last=True
-                            )
-        self.test_loader =  DataLoader(
-                                test_set,
-                                batch_size=args.batch_size,
-                                shuffle=False,
-                                num_workers=args.num_workers,
-                                drop_last=False
-                            )
 
 
     def _build_model(self):
@@ -107,6 +68,41 @@ class Experiment_DL(Exp_Basic):
         return model.double()  # double() 이 뭐하는 함수고?
 
 
+    def _get_data(self, flag):
+        args = self.args
+        if args.nia_csv_base:
+            module = NIA_data_loader_csvOnly_YearSplit.Dataset_NIA
+        else:
+            module = NIA_data_loader_jsonRead.Dataset_NIA
+            
+        data_set = module(
+            root_path = args.root_path,
+            NIA_work = args.NIA_work,
+            data = args.data,
+            port = args.port,
+            data_path = args.data_path,
+            flag = flag,
+            size = [args.seq_len, args.pred_len],
+            args = args
+        )
+
+        shuffle_flag = True; drop_last = True; batch_size = args.batch_size
+        # if flag == 'test':
+        #     shuffle_flag = False; drop_last = True; batch_size = args.batch_size
+        # else:
+        #     shuffle_flag = True; drop_last = True; batch_size = args.batch_size
+
+        print(flag, len(data_set))
+        data_loader = DataLoader(
+                          data_set,
+                          batch_size=batch_size,
+                          shuffle=shuffle_flag,
+                          num_workers=args.num_workers,
+                          drop_last=drop_last
+                      )
+        return data_set, data_loader
+
+
     def _select_optimizer(self):
         model_optim = optim.Adam(self.model.parameters(), lr=self.args.lr)
         return model_optim
@@ -125,8 +121,12 @@ class Experiment_DL(Exp_Basic):
 
 
     def train(self, setting):
-        """ do train
-        """
+        train_data, train_loader = self._get_data(flag = 'train')
+        valid_data, valid_loader = self._get_data(flag = 'val')
+
+        if self.args.evaluate:
+            test_data, test_loader = self._get_data(flag = 'test')
+        
         path = os.path.join(self.args.checkpoints, setting)
         print(path)
         if not os.path.exists(path):
@@ -136,7 +136,7 @@ class Experiment_DL(Exp_Basic):
 
         time_now = time.time()
         
-        train_steps = len(self.train_loader)
+        train_steps = len(train_loader)
         early_stopping = EarlyStopping(patience=self.args.patience, verbose=True)
         
         model_optim = self._select_optimizer()
@@ -160,11 +160,11 @@ class Experiment_DL(Exp_Basic):
             self.model.train()
             epoch_time = time.time()
             
-            for i, (batch_x, batch_y) in enumerate(self.train_loader):
+            for i, (batch_x, batch_y) in enumerate(train_loader):
                 model_optim.zero_grad()
                 
                 pred, pred_scale, mid, mid_scale, true, true_scale = \
-                           self._process_one_batch(self.train_data, batch_x, batch_y)
+                           self._process_one_batch(train_data, batch_x, batch_y)
                 if self.args.model_name == 'SCINet':  
                     loss = criterion(pred, true) + criterion(mid, true)
                 else:
@@ -192,7 +192,7 @@ class Experiment_DL(Exp_Basic):
             print("Epoch: {} cost time: {}".format(epoch + 1, time.time()-epoch_time))
             train_loss = np.average(train_loss)
             print('--------start to validate-----------')
-            valid_loss = self.valid(self.valid_data, self.valid_loader, criterion)
+            valid_loss = self.valid(valid_data, valid_loader, criterion)
 
             print("Epoch: {0}, Steps: {1} | Train Loss: {2:.7f} valid Loss: {3:.7f}".format(
                 epoch + 1, train_steps, train_loss, valid_loss))
@@ -209,7 +209,7 @@ class Experiment_DL(Exp_Basic):
         
         if self.args.evaluate:
             print('--------start to test-----------')
-            test_loss = self.valid(self.test_data, self.test_loader, criterion)
+            test_loss = self.valid(test_data, test_loader, criterion)
             print("Test Loss: {:.7f}".format(test_loss))
 
         save_model(epoch, lr, self.model, path, model_name=self.args.data, 
@@ -221,9 +221,6 @@ class Experiment_DL(Exp_Basic):
 
 
     def valid(self, valid_data, valid_loader, criterion):
-        """
-        do validation
-        """
         self.model.eval()
         total_loss = []
         preds = []
@@ -281,9 +278,8 @@ class Experiment_DL(Exp_Basic):
     
 
     def test(self, setting, evaluate=False):
-        """test
-
-        """
+        test_data, test_loader = self._get_data(flag='test')
+        
         self.model.eval()
         
         preds = []
@@ -298,9 +294,9 @@ class Experiment_DL(Exp_Basic):
             best_model_path = path+'/'+'checkpoint.pth'
             self.model.load_state_dict(torch.load(best_model_path))
 
-        for i, (batch_x,batch_y) in enumerate(self.test_loader):
+        for i, (batch_x,batch_y) in enumerate(test_loader):
             pred, pred_scale, mid, mid_scale, true, true_scale = \
-                            self._process_one_batch(self.test_data, batch_x, batch_y)
+                            self._process_one_batch(test_data, batch_x, batch_y)
 
             preds.append(pred.detach().cpu().numpy())
             trues.append(true.detach().cpu().numpy())
@@ -326,13 +322,11 @@ class Experiment_DL(Exp_Basic):
         
 
     def _process_one_batch(self, 
-                           dataset_object,
+                           dataset_object, 
                            batch_x, 
                            batch_y
                           ) -> tuple:
-        """
-        one batch process for train, val, test
-        """
+        
         batch_x = batch_x.double().cuda()
         batch_y = batch_y.double()
 
