@@ -151,7 +151,7 @@ class Experiment_DL(Exp_Basic):
 
         if self.args.resume:
             self.model, lr, epoch_start = load_model(
-                                                    self.model, path, 
+                                                     self.model, path, 
                                                      model_name=self.args.data, 
                                                      horizon=self.args.horizon
                                           )
@@ -169,6 +169,7 @@ class Experiment_DL(Exp_Basic):
                 
                 pred, pred_scale, mid, mid_scale, true, true_scale = \
                            self._process_one_batch(self.train_data, batch_x, batch_y)
+                
                 if self.args.model_name == 'SCINet':  
                     loss = criterion(pred, true) + criterion(mid, true)
                 else:

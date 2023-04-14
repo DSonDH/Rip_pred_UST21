@@ -20,7 +20,6 @@ class Dataset_NIA(Dataset):
                  NIA_work: str,
                  data: str,
                  port: str=None, 
-                 flag: str='train',
                  size: Union[List, None]=None,
                  data_path: str='',
                  args: dict=None
@@ -36,11 +35,7 @@ class Dataset_NIA(Dataset):
             self.pred_len = size[1]
 
         # init
-        assert flag in ['train', 'test', 'val']
-        type_map = {'train':0, 'val':1, 'test':2}
         self.NIA_work = NIA_work
-        self.mode = flag
-        self.set_type = type_map[flag]
         self.root_path = root_path
         self.data_path = data_path
         self.data = data
@@ -91,7 +86,7 @@ class Dataset_NIA(Dataset):
             Split Way2: 8:1:1 timestamp 갯수로 나누는 방법.  <--- Improper Way
 
         mode통합 instance 추출:
-            train, val, test 힌번에 구하고, 필요한 mode 저장된거 불러오는 방식
+            train, val, test 힌번에 구하고 저장하는 방식
         
         instance 추출:
             all_site 분리해서 샘플 추출함 (항별로 연속된 시간이 아니므로)
@@ -100,7 +95,7 @@ class Dataset_NIA(Dataset):
             Read 'DC' --> train val test
                             +
             Read 'HD' --> train val test
-                            +
+                          self.  +
             Read 'JM' --> train val test
                             +
             Read 'NS' --> train val test
@@ -121,8 +116,8 @@ class Dataset_NIA(Dataset):
 
         if not os.path.exists(
             f'{self.root_path}/{self.NIA_work}_'\
-            f'processed_X_{self.mode}_{year}_YearSplit.pkl'):
-            print(f'no processed {self.mode} file. start data preprocessing!! \n')
+            f'processed_X_train_{year}_YearSplit.pkl'):
+            print(f'no processed train file. start data preprocessing!! \n')
             
             csv_pth = f'{self.root_path}/obs_qc_100p'
 
@@ -135,7 +130,7 @@ class Dataset_NIA(Dataset):
             y_te = []
             n_sites = len(site_names)
             for i, site in enumerate(site_names):
-                print(f' ## processing {site} for {self.mode}')
+                print(f' ## processing {site} for train')
 
                 df = self.load_df(csv_pth, site, angle_inci_beach[i])
                 
@@ -189,42 +184,37 @@ class Dataset_NIA(Dataset):
             )
 
             # now save it.
-            joblib.dump(self.scaler.fit_transform(X_tr), 
-                f'{self.root_path}/{self.NIA_work}_processed_X_tr_{year}_YearSplit.pkl')
+            joblib.dump(self.scaler.transform(X_tr), 
+                f'{self.root_path}/{self.NIA_work}_processed_X_train_{year}_YearSplit.pkl')
             joblib.dump(y_tr, 
-                f'{self.root_path}/{self.NIA_work}_processed_y_tr_{year}_YearSplit.pkl')
-            joblib.dump(self.scaler.fit_transform(X_val), 
+                f'{self.root_path}/{self.NIA_work}_processed_y_train_{year}_YearSplit.pkl')
+            joblib.dump(self.scaler.transform(X_val), 
                 f'{self.root_path}/{self.NIA_work}_processed_X_val_{year}_YearSplit.pkl')
             joblib.dump(y_val, 
                 f'{self.root_path}/{self.NIA_work}_processed_y_val_{year}_YearSplit.pkl')
-            joblib.dump(self.scaler.fit_transform(X_te), 
-                f'{self.root_path}/{self.NIA_work}_processed_X_te_{year}_YearSplit.pkl')
+            joblib.dump(self.scaler.transform(X_te), 
+                f'{self.root_path}/{self.NIA_work}_processed_X_test_{year}_YearSplit.pkl')
             joblib.dump(y_te, 
-                f'{self.root_path}/{self.NIA_work}_processed_y_te_{year}_YearSplit.pkl')
+                f'{self.root_path}/{self.NIA_work}_processed_y_test_{year}_YearSplit.pkl')
             
         # when saved pre-processed file exist
-        else:
-            print(f'Found processed {self.mode} file. skip preprocessing !!!\n')
-                
-            if self.mode == 'train':
-                self.X = joblib.load(
-                        f'{self.root_path}/{self.NIA_work}_processed_X_tr_{year}_YearSplit.pkl')
-                self.y = joblib.load(
-                        f'{self.root_path}/{self.NIA_work}_processed_y_tr_{year}_YearSplit.pkl')
-            elif self.mode == 'val':
-                self.X = joblib.load(
-                        f'{self.root_path}/{self.NIA_work}_processed_X_val_{year}_YearSplit.pkl')
-                self.y = joblib.load(
-                        f'{self.root_path}/{self.NIA_work}_processed_y_val_{year}_YearSplit.pkl')
-            else:
-                self.X = joblib.load(
-                        f'{self.root_path}/{self.NIA_work}_processed_X_te_{year}_YearSplit.pkl')
-                self.y = joblib.load(
-                        f'{self.root_path}/{self.NIA_work}_processed_y_te_{year}_YearSplit.pkl')
+        self.X = joblib.load(
+                f'{self.root_path}/{self.NIA_work}_processed_X_train_{year}_YearSplit.pkl')
+        self.y = joblib.load(
+                f'{self.root_path}/{self.NIA_work}_processed_y_train_{year}_YearSplit.pkl')
+        self.X = joblib.load(
+                f'{self.root_path}/{self.NIA_work}_processed_X_val_{year}_YearSplit.pkl')
+        self.y = joblib.load(
+                f'{self.root_path}/{self.NIA_work}_processed_y_val_{year}_YearSplit.pkl')
+        self.X = joblib.load(
+                f'{self.root_path}/{self.NIA_work}_processed_X_test_{year}_YearSplit.pkl')
+        self.y = joblib.load(
+                f'{self.root_path}/{self.NIA_work}_processed_y_test_{year}_YearSplit.pkl')
 
-                self.scaler = joblib.load(  # train mode만 불러야 함
-                     f'{self.root_path}/{self.NIA_work}_NIA_train_{self.port}_{year}_scaler_YearSplit.pkl')
-            print('check if loaded file is already scaled (standard scaler)')
+        self.scaler = joblib.load(  # train 기간에 대해 맞춰진 것
+                f'{self.root_path}/{self.NIA_work}_NIA_train_{self.port}_{year}_scaler_YearSplit.pkl')
+        #TODO:
+        print('check if loaded file is already scaled (standard scaler)')
 
 
     def __getitem__(self, index):
