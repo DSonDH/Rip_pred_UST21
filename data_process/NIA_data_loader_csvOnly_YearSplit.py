@@ -198,17 +198,17 @@ class Dataset_NIA(Dataset):
                 f'{self.root_path}/{self.NIA_work}_processed_y_test_{year}_YearSplit.pkl')
             
         # when saved pre-processed file exist
-        self.X = joblib.load(
+        self.X_train = joblib.load(
                 f'{self.root_path}/{self.NIA_work}_processed_X_train_{year}_YearSplit.pkl')
-        self.y = joblib.load(
+        self.y_train = joblib.load(
                 f'{self.root_path}/{self.NIA_work}_processed_y_train_{year}_YearSplit.pkl')
-        self.X = joblib.load(
+        self.X_val = joblib.load(
                 f'{self.root_path}/{self.NIA_work}_processed_X_val_{year}_YearSplit.pkl')
-        self.y = joblib.load(
+        self.y_val = joblib.load(
                 f'{self.root_path}/{self.NIA_work}_processed_y_val_{year}_YearSplit.pkl')
-        self.X = joblib.load(
+        self.X_test = joblib.load(
                 f'{self.root_path}/{self.NIA_work}_processed_X_test_{year}_YearSplit.pkl')
-        self.y = joblib.load(
+        self.y_test = joblib.load(
                 f'{self.root_path}/{self.NIA_work}_processed_y_test_{year}_YearSplit.pkl')
 
         self.scaler = joblib.load(  # train 기간에 대해 맞춰진 것

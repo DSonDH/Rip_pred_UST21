@@ -1,25 +1,28 @@
-#%%
-# %matplotlib inline
-
-#%%
+from typing import Tuple
 import numpy as np
 import pandas as pd
-from scipy.stats import norm
 import statsmodels.api as sm
 import matplotlib.pyplot as plt
-from datetime import datetime
 import requests
 from io import BytesIO
 import itertools
 
 
-def Experiment_SARIMAX():
-    # Register converters to avoid warnings
-    pd.plotting.register_matplotlib_converters()
-    plt.rc("figure", figsize=(16,8))
-    plt.rc("font", size=14)
+def Experiment_SARIMAX(dataset: object)->Tuple:
+    """
+    fit test set data using SARIMAX algorithm and 
+    calculate accuracyy, f1 score for all test instances.
 
+    Args: 
+        dataset: dataset object which have train, val, test datset with scaler
+    
+    """
     #%% Dataset
+    #TODO:FIXME: 여기서 instance별로 fitting해서 결과내고, 성능평가하여서 결과 반환
+    X_test = dataset.X_test  # N x 32 x 16
+    y_test = dataset.y_test  # N x 16 x 16
+
+
     friedman2 = requests.get('https://www.stata-press.com/data/r12/friedman2.dta').content
     data = pd.read_stata(BytesIO(friedman2))
     data.index = data.time
@@ -113,6 +116,7 @@ def Experiment_SARIMAX():
 
     legend = ax.legend(loc='lower right')
 
+    return acc, f1, acc_1h, f1_1h
 
 if __name__ == '__main__':
-    Experiment_ML()
+    Experiment_SARIMAX()

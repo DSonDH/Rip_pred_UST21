@@ -27,42 +27,39 @@ class Experiment_DL(Exp_Basic):
 
         # train / val / test dataset and dataloader setting
         if args.nia_csv_base:
-            module = NIA_data_loader_csvOnly_YearSplit.Dataset_NIA
+            DatasetClass = NIA_data_loader_csvOnly_YearSplit.Dataset_NIA
         else:
-            module = NIA_data_loader_jsonRead.Dataset_NIA
+            DatasetClass = NIA_data_loader_jsonRead.Dataset_NIA
             
-        train_set, val_set, test_set = module(
-                                          root_path = args.root_path,
-                                          NIA_work = args.NIA_work,
-                                          data = args.data,
-                                          port = args.port,
-                                          data_path = args.data_path,
-                                          size = [args.seq_len, args.pred_len],
-                                          args = args
-                                       )
-        self.train_set = train_set
-        self.val_set = val_set
-        self.test_set = test_set
+        self.dataset = DatasetClass(
+                           root_path = args.root_path,
+                           NIA_work = args.NIA_work,
+                           data = args.data,
+                           port = args.port,
+                           data_path = args.data_path,
+                           size = [args.seq_len, args.pred_len],
+                           args = args
+                       )
 
         #FIXME: for debug, check time range overlap or shape
         #FIXME: analyze statistics of train/val/test set
 
         self.train_loader = DataLoader(
-                                train_set,
+                                self.dataset.train_set,
                                 batch_size=args.batch_size,
                                 shuffle=True,
                                 num_workers=args.num_workers,
                                 drop_last=True
                             )
         self.val_loader =   DataLoader(
-                                val_set,
+                                self.dataset.val_set,
                                 batch_size=args.batch_size,
                                 shuffle=True,
                                 num_workers=args.num_workers,
                                 drop_last=True
                             )
         self.test_loader =  DataLoader(
-                                test_set,
+                                self.dataset.test_set,
                                 batch_size=args.batch_size,
                                 shuffle=False,
                                 num_workers=args.num_workers,
@@ -271,10 +268,12 @@ class Experiment_DL(Exp_Basic):
 
         true_scales = true_scales.reshape(-1, 
                                           true_scales.shape[-2], 
-                                          true_scales.shape[-1])
+                                          true_scales.shape[-1]
+                                         )
         pred_scales = pred_scales.reshape(-1, 
                                           pred_scales.shape[-2], 
-                                          pred_scales.shape[-1])
+                                          pred_scales.shape[-1]
+                                         )
 
         print('==== Final ====')
         acc, f1, acc_1h, f1_1h, true, pred, true_1h, pred_1h = \
@@ -317,10 +316,12 @@ class Experiment_DL(Exp_Basic):
 
         true_scales = true_scales.reshape(-1, 
                                           true_scales.shape[-2], 
-                                          true_scales.shape[-1])
+                                          true_scales.shape[-1]
+                                         )
         pred_scales = pred_scales.reshape(-1, 
                                           pred_scales.shape[-2], 
-                                          pred_scales.shape[-1])
+                                          pred_scales.shape[-1]
+                                         )
         
         print('==== Final ====')
         acc, f1, acc_1h, f1_1h, true, pred, true_1h, pred_1h = \

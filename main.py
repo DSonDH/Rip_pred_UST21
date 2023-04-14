@@ -148,20 +148,20 @@ for port in port_list:
         from data_process import (NIA_data_loader_csvOnly_YearSplit,
                                 NIA_data_loader_jsonRead)
         if args.nia_csv_base:
-            module = NIA_data_loader_csvOnly_YearSplit.Dataset_NIA
+            DatasetClass = NIA_data_loader_csvOnly_YearSplit.Dataset_NIA
         else:
-            module = NIA_data_loader_jsonRead.Dataset_NIA
+            DatasetClass = NIA_data_loader_jsonRead.Dataset_NIA
 
-        data_set = module(
+        data_set = DatasetClass(
             root_path = args.root_path,
             NIA_work = args.NIA_work,
             data = args.data,
             port = args.port,
             data_path = args.data_path,
-            flag = 'test',
             size = [args.seq_len, args.pred_len],
             args = args
         )
+        
         acc, f1, acc_1h, f1_1h = Experiment_SARIMAX(data_set)
 
     elif args.model_name in ['RF', 'XGB']:
