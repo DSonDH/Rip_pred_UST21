@@ -43,6 +43,10 @@ class Experiment_DL(Exp_Basic):
         self.train_set = train_set
         self.val_set = val_set
         self.test_set = test_set
+
+        #FIXME: for debug, check time range overlap or shape
+        #FIXME: analyze statistics of train/val/test set
+
         self.train_loader = DataLoader(
                                 train_set,
                                 batch_size=args.batch_size,
