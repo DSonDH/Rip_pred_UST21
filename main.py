@@ -130,7 +130,7 @@ for port in port_list:
         pass
         # model= nn.DataParallel(model,device_ids = [1, 3])
     print('Args in experiment:')
-    print(args)
+    print(args, '\n\n')
 
     torch.manual_seed(4321)  # reproducible
     torch.cuda.manual_seed_all(4321)

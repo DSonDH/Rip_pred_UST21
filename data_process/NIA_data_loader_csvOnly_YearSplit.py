@@ -214,7 +214,7 @@ class Dataset_NIA(Dataset):
         self.scaler = joblib.load(  # train 기간에 대해 맞춰진 것
                 f'{self.root_path}/{self.NIA_work}_NIA_train_{self.port}_{year}_scaler_YearSplit.pkl')
         #TODO:
-        print('check if loaded file is already scaled (standard scaler)')
+        # print('check if loaded file is already scaled (standard scaler)')
 
 
     def __getitem__(self, index):

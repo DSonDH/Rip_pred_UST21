@@ -12,7 +12,7 @@ warnings.filterwarnings('ignore')
 from data_process import (NIA_data_loader_csvOnly_YearSplit,
                           NIA_data_loader_jsonRead)
 from experiments.exp_basic import Exp_Basic
-from metrics.NIA_metrics import metric, score_in_1h
+from metrics.NIA_metrics import metric_regressor, metric_classifier
 
 from models.DNN import DNN
 from models.SCINet_decompose import SCINet_decomp
@@ -165,7 +165,7 @@ class Experiment_DL(Exp_Basic):
                 model_optim.zero_grad()
                 
                 pred, pred_scale, mid, mid_scale, true, true_scale = \
-                           self._process_one_batch(self.train_data, batch_x, batch_y)
+                    self._process_one_batch(self.train_data, batch_x, batch_y)
                 
                 if self.args.model_name == 'SCINet':  
                     loss = criterion(pred, true) + criterion(mid, true)
@@ -237,7 +237,7 @@ class Experiment_DL(Exp_Basic):
 
         for i, (batch_x, batch_y) in enumerate(valid_loader):
             pred, pred_scale, mid, mid_scale, true, true_scale = \
-                           self._process_one_batch(valid_data, batch_x, batch_y)
+                self._process_one_batch(valid_data, batch_x, batch_y)
 
             if self.args.model_name == 'SCINet':
                 loss = criterion(pred.detach().cpu(), 
@@ -276,9 +276,9 @@ class Experiment_DL(Exp_Basic):
                                          )
 
         print('==== Final ====')
-        acc, f1, acc_1h, f1_1h, true, pred, true_1h, pred_1h = \
-                                      score_in_1h(pred_scales, true_scales, self.args)
-        print(f'Accuracy, F1 in 1h: {acc_1h :.3f}, {f1_1h :.3f}')
+        acc, f1 = metric_classifier(true_scales, pred_scales)
+        dummy = metric_regressor(true_scales, pred_scales)
+
         print(f'Accuracy, F1: {acc :.3f}, {f1 :.3f} \n\n')
 
         return total_loss
@@ -304,7 +304,7 @@ class Experiment_DL(Exp_Basic):
 
         for i, (batch_x,batch_y) in enumerate(self.test_loader):
             pred, pred_scale, mid, mid_scale, true, true_scale = \
-                            self._process_one_batch(self.test_data, batch_x, batch_y)
+                self._process_one_batch(self.test_data, batch_x, batch_y)
 
             preds.append(pred.detach().cpu().numpy())
             trues.append(true.detach().cpu().numpy())
@@ -324,11 +324,10 @@ class Experiment_DL(Exp_Basic):
                                          )
         
         print('==== Final ====')
-        acc, f1, acc_1h, f1_1h, true, pred, true_1h, pred_1h = \
-                                score_in_1h(pred_scales, true_scales, self.args)
-        print(f'Accuracy, F1 in 1h: {acc_1h :.3f}, {f1_1h :.3f}\n\n')        
+        acc, f1 = metric_classifier(true_scales, pred_scales)
+        dummy = metric_regressor(true_scales, pred_scales)
 
-        return acc, f1, acc_1h, f1_1h
+        return acc, f1
         
 
     def _process_one_batch(self, 

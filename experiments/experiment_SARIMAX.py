@@ -2,10 +2,8 @@ from typing import Tuple
 import numpy as np
 import pandas as pd
 import statsmodels.api as sm
-import matplotlib.pyplot as plt
-import requests
-from io import BytesIO
 import itertools
+from metrics.NIA_metrics import metric_classifier, metric_regressor
 
 
 def Experiment_SARIMAX(dataset: object)->Tuple:
@@ -15,44 +13,76 @@ def Experiment_SARIMAX(dataset: object)->Tuple:
 
     Args: 
         dataset: dataset object which have train, val, test datset with scaler
-    
     """
-    #%% Dataset
-    #TODO:FIXME: 여기서 instance별로 fitting해서 결과내고, 성능평가하여서 결과 반환
+    # Dataset
     X_test = dataset.X_test  # N x 32 x 16
     y_test = dataset.y_test  # N x 16 x 16
+    print(X_test.shape,y_test.shape)
 
-
-    friedman2 = requests.get('https://www.stata-press.com/data/r12/friedman2.dta').content
-    data = pd.read_stata(BytesIO(friedman2))
-    data.index = data.time
-    data.index.freq = "QS-OCT"
-
-    # Variables
-    endog = data.loc['1959':'1981', 'consump']
-    exog = sm.add_constant(data.loc['1959':'1981', 'm2'])
-    nobs = endog.shape[0]
+    i = 10
+    y_train = X_test[i, :, 11]
+    x_train = X_test[i, :, :10]
+    x_test = y_test[i, :, :10]
+    y_test = y_test[i, :, 11]
+    pred_len = dataset.pred_len
 
     # Fit the model
-    #TODO: order 3개 성분 grid search
     p = range(0, 3)
     d = range(0, 3)
     q = range(0, 3)
+    method_list = ['nm', 'lbfgs', 'powell']
 
-    pdqs = list(itertools.product(p, d, q))
+    pdqs = list(itertools.product(p, d, q, method_list))
     best_aic = np.inf
 
-    for pdq in pdqs:
-        model = sm.tsa.statespace.SARIMAX(endog.loc[:'1978-01-01'].values, 
-                                        exog=exog.loc[:'1978-01-01'].values, 
-                                        order=pdq
-                                    )
-        fit_res = model.fit(disp=False, maxiter=250)
+    for p, d, q, method in pdqs:
+        model = sm.tsa.statespace.SARIMAX(y_train,  # Time x 1
+                                          exog=x_train,  # Time x m
+                                          order=(p, d, q),
+                                         )
+        fit_res = model.fit(disp=False, 
+                            maxiter=200,
+                            method=method
+                  )
+        #FIXME: error hadling. 안되면 출력이라도 끄기.
+ㄴㄹㅇㄴㄴㅇㄹㄴㅇ
+        # print(fit_res.mle_retvals)
+
+        # method : str, optional
+        #     The `method` determines which solver from `scipy.optimize`
+        #     is used, and it can be chosen from among the following strings:
+
+        #     - 'newton' for Newton-Raphson
+        #     - 'nm' for Nelder-Mead
+        #     - 'bfgs' for Broyden-Fletcher-Goldfarb-Shanno (BFGS)
+        #     - 'lbfgs' for limited-memory BFGS with optional box constraints
+        #     - 'powell' for modified Powell's method
+        #     - 'cg' for conjugate gradient
+        #     - 'ncg' for Newton-conjugate gradient
+        #     - 'basinhopping' for global basin-hopping solver
+
         if fit_res.aic < best_aic:
             best_aic = fit_res.aic
-            best_pdq = pdq
+            best_pdq = (p,  d, q)
             best_model = model
             best_fit_res = fit_res
+    
+    # print(best_fit_res.summary())
+    print(best_fit_res.mle_retvals)
+
+    pred_test_regressor = best_fit_res.forecast(steps=pred_len, exog=x_test)
+    # fcast_res1 = best_fit_res.get_forecast(steps=pred_len, exog=x_test)
+    # fcast_res1.summary_frame()['mean']
+    pred_test = np.clip(pred_test_regressor, 0, 1)
+    
+    acc, f1 = metric_classifier(np.array(y_test), pred_test.values)
+    dummy = metric_regressor(np.array(y_test), pred_test.values)
+
+    return acc, f1
+
+
+if __name__ == '__main__':
+    Experiment_SARIMAX()
 
     '''
     order : iterable or iterable of iterables, optional
@@ -84,39 +114,3 @@ def Experiment_SARIMAX(dataset: object)->Tuple:
         :math:`a + bt + ct^3`. Default is to not include a trend component.
         이안류 개별 라벨들은 어떤 추세라고 할수있지? linear? constant? polynomial?
     '''
-
-    print(best_fit_res.summary())
-
-    #%% In-sample one-step-ahead predictions
-    res = best_model.filter(best_fit_res.params)
-
-    predict = res.get_prediction()
-    predict_ci = predict.conf_int()
-
-    # Dynamic predictions
-    predict_dy = res.get_prediction(dynamic='1978-01-01')
-    predict_dy_ci = predict_dy.conf_int()
-
-
-    #%% Graph
-    fig, ax = plt.subplots(figsize=(9,4))
-    npre = 4
-    ax.set(title='Personal consumption', xlabel='Date', ylabel='Billions of dollars')
-
-    # Plot data points
-    data.loc['1977-07-01':, 'consump'].plot(ax=ax, style='o', label='Observed')
-
-    # Plot predictions
-    predict.predicted_mean.loc['1977-07-01':].plot(ax=ax, style='r--', label='One-step-ahead forecast')
-    ci = predict_ci.loc['1977-07-01':]
-    ax.fill_between(ci.index, ci.iloc[:,0], ci.iloc[:,1], color='r', alpha=0.1)
-    predict_dy.predicted_mean.loc['1977-07-01':].plot(ax=ax, style='g', label='Dynamic forecast (1978)')
-    ci = predict_dy_ci.loc['1977-07-01':]
-    ax.fill_between(ci.index, ci.iloc[:,0], ci.iloc[:,1], color='g', alpha=0.1)
-
-    legend = ax.legend(loc='lower right')
-
-    return acc, f1, acc_1h, f1_1h
-
-if __name__ == '__main__':
-    Experiment_SARIMAX()

@@ -13,7 +13,7 @@ warnings.filterwarnings('ignore')
 from data_process import (NIA_data_loader_csvOnly_YearSplit,
                           NIA_data_loader_jsonRead)
 from experiments.exp_basic import Exp_Basic
-from metrics.NIA_metrics import metric, score_in_1h
+from metrics.NIA_metrics import metric_regressor, metric_classifier
 
 from models.DNN import DNN
 from models.SCINet_decompose import SCINet_decomp
@@ -270,7 +270,7 @@ class Experiment_DL(Exp_Basic):
 
         print('==== Final ====')
         acc, f1, acc_1h, f1_1h, true, pred, true_1h, pred_1h = \
-                                      score_in_1h(pred_scales, true_scales, self.args)
+                                      metric_classifier(pred_scales, true_scales, self.args)
         print(f'Accuracy, F1 in 1h: {acc_1h :.3f}, {f1_1h :.3f}')
         print(f'Accuracy, F1: {acc :.3f}, {f1 :.3f} \n\n')
 
@@ -315,7 +315,7 @@ class Experiment_DL(Exp_Basic):
         
         print('==== Final ====')
         acc, f1, acc_1h, f1_1h, true, pred, true_1h, pred_1h = \
-                                score_in_1h(pred_scales, true_scales, self.args)
+                                metric_classifier(pred_scales, true_scales, self.args)
         print(f'Accuracy, F1 in 1h: {acc_1h :.3f}, {f1_1h :.3f}\n\n')        
 
         return acc, f1, acc_1h, f1_1h
