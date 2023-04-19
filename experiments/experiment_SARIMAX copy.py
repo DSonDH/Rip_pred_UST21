@@ -9,68 +9,8 @@ from statsmodels.tools.sm_exceptions import ConvergenceWarning
 warnings.simplefilter('ignore', ConvergenceWarning)
 
 from tqdm.contrib.concurrent import process_map
-from functools import partial
-from multiprocessing import cpu_count
 
-
-def SARIMAX_multiprocess(i: int, pred_len: int=None, 
-                         X_test: np.ndarray=None, y_test: np.ndarray=None
-                         ) -> np.ndarray:
-
-    y_train_tmp = X_test[i, :, 11]
-    x_train_tmp = X_test[i, :, :10]
-    x_test_tmp = y_test[i, :, :10]
-    
-    # Fit the model
-    p = range(0, 3)
-    d = range(0, 3)
-    q = range(0, 3)
-    method_list = ['nm', 'lbfgs', 'powell']
-
-    pdqs = list(itertools.product(p, d, q, method_list))
-    best_aic = np.inf
-
-    for p, d, q, method in pdqs:
-        model = sm.tsa.statespace.SARIMAX(y_train_tmp,  # Time x 1
-                                        exog=x_train_tmp,  # Time x m
-                                        order=(p, d, q),
-                                        )
-        fit_res = model.fit(disp=False, 
-                            maxiter=200,
-                            method=method
-                )
-        # print(fit_res.mle_retvals)
-
-        # method : str, optional
-        #     The `method` determines which solver from `scipy.optimize`
-        #     is used, and it can be chosen from among the following strings:
-
-        #     - 'newton' for Newton-Raphson
-        #     - 'nm' for Nelder-Mead
-        #     - 'bfgs' for Broyden-Fletcher-Goldfarb-Shanno (BFGS)
-        #     - 'lbfgs' for limited-memory BFGS with optional box constraints
-        #     - 'powell' for modified Powell's method
-        #     - 'cg' for conjugate gradient
-        #     - 'ncg' for Newton-conjugate gradient
-        #     - 'basinhopping' for global basin-hopping solver
-
-        if fit_res.aic < best_aic:
-            best_aic = fit_res.aic
-            best_pdq = (p,  d, q)
-            best_model = model
-            best_fit_res = fit_res
-    
-    # print(best_fit_res.summary())
-    # print(best_fit_res.mle_retvals)
-
-    pred_test_regressor = best_fit_res.forecast(steps=pred_len, exog=x_test_tmp)
-    # fcast_res1 = best_fit_res.get_forecast(steps=pred_len, exog=x_test)
-    # fcast_res1.summary_frame()['mean']
-    
-    return np.clip(pred_test_regressor, 0, 1)
-
-
-def Experiment_SARIMAX(dataset: object, n_worker:int=20)->Tuple:
+def Experiment_SARIMAX(dataset: object)->Tuple:
     """
     fit test set data using SARIMAX algorithm and 
     calculate accuracyy, f1 score for all test instances.
@@ -78,28 +18,76 @@ def Experiment_SARIMAX(dataset: object, n_worker:int=20)->Tuple:
     Args: 
         dataset: dataset object which have train, val, test datset with scaler
     """
-
     # Dataset
     X_test = dataset.X_test  # N x 32 x 16
     y_test = dataset.y_test  # N x 16 x 16
-    y_test_label = y_test[:, :, 11]
     # print(X_test.shape,y_test.shape)
 
     assert(X_test.shape[2] >= 11)
     assert(y_test.shape[2] >= 11)
 
-    partial_wrapper = partial(SARIMAX_multiprocess, X_test=X_test, y_test=y_test, 
-                                                    pred_len=y_test.shape[1])
-    pred_test = process_map(partial_wrapper, range(len(X_test)),
-                            max_workers=n_worker, 
-                            chunksize=1)
-    #TODO: minisample로 결과나오는 format확인하고 멀티프로세싱 복습하고 full data tmux로 처리하기
-    ㄴㅇㄹㄴㅇㄻㄻㄴ
-    
-    print(len(pred_test))
-    pred_test2 = np.array(pred_test)
-    print(pred_test)
+    pred_test = []
+    for i in range(len(X_test)):
 
+        # if i * 1000 == 0:
+        #     print(f'SARIMAX evaluation : {i / len(X_test) * 100: .2f}% done ')
+
+        y_train_tmp = X_test[i, :, 11]
+        x_train_tmp = X_test[i, :, :10]
+        x_test_tmp = y_test[i, :, :10]
+        y_test_label = y_test[i, :, 11]
+        pred_len = dataset.pred_len
+
+        # Fit the model
+        p = range(0, 3)
+        d = range(0, 3)
+        q = range(0, 3)
+        method_list = ['nm', 'lbfgs', 'powell']
+
+        pdqs = list(itertools.product(p, d, q, method_list))
+        best_aic = np.inf
+
+        for p, d, q, method in pdqs:
+            model = sm.tsa.statespace.SARIMAX(y_train_tmp,  # Time x 1
+                                            exog=x_train_tmp,  # Time x m
+                                            order=(p, d, q),
+                                            )
+            fit_res = model.fit(disp=False, 
+                                maxiter=200,
+                                method=method
+                    )
+            # print(fit_res.mle_retvals)
+
+            # method : str, optional
+            #     The `method` determines which solver from `scipy.optimize`
+            #     is used, and it can be chosen from among the following strings:
+
+            #     - 'newton' for Newton-Raphson
+            #     - 'nm' for Nelder-Mead
+            #     - 'bfgs' for Broyden-Fletcher-Goldfarb-Shanno (BFGS)
+            #     - 'lbfgs' for limited-memory BFGS with optional box constraints
+            #     - 'powell' for modified Powell's method
+            #     - 'cg' for conjugate gradient
+            #     - 'ncg' for Newton-conjugate gradient
+            #     - 'basinhopping' for global basin-hopping solver
+
+            if fit_res.aic < best_aic:
+                best_aic = fit_res.aic
+                best_pdq = (p,  d, q)
+                best_model = model
+                best_fit_res = fit_res
+        
+        # print(best_fit_res.summary())
+        # print(best_fit_res.mle_retvals)
+
+        pred_test_regressor = best_fit_res.forecast(steps=pred_len, exog=x_test_tmp)
+        # fcast_res1 = best_fit_res.get_forecast(steps=pred_len, exog=x_test)
+        # fcast_res1.summary_frame()['mean']
+        
+        pred_test.extend(
+            np.clip(pred_test_regressor, 0, 1)
+        )
+    
     acc, f1 = metric_classifier(np.array(y_test_label), np.array(pred_test))
     # dummy = metric_regressor(np.array(y_test), pred_test.values)
 
