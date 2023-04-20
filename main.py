@@ -1,8 +1,11 @@
 import argparse
 import torch
-from experiments.experiment import Experiment_DL
+from experiments.experiment_DL import Experiment_DL
 from experiments.experiment_SARIMAX import Experiment_SARIMAX
 from experiments.experiment_ML import Experiment_ML
+
+from metrics.NIA_metrics import metric_classifier, metric_regressor, metric_all
+
 
 # ===================================================
 # configs usually changed
@@ -143,7 +146,8 @@ for port in port_list:
                     args.batch_size,args.hidden_size,args.stacks, 
                     args.levels,args.dropout,args.inverse)
 
-    # train / val / test defined function
+    
+    #FIXME: 최종 save table 형식, 파일이 뭐가 되야지 연구하기 편할까?
     if args.model_name == 'SARIMAX':
         from data_process import (NIA_data_loader_csvOnly_YearSplit,
                                 NIA_data_loader_jsonRead)
@@ -162,20 +166,73 @@ for port in port_list:
             args = args
         )
         
-        acc, f1, acc_1h, f1_1h = Experiment_SARIMAX(data_set)
+        # SARIMAX는 training과정이 없으며, 언제나 testset을 활용함
+        y_test_label, pred_test = Experiment_SARIMAX(data_set, 
+                                            pred_len=pred_len,
+                                            n_worker=20
+                                    )
 
-    elif args.model_name in ['RF', 'XGB']:
-         acc, f1, acc_1h, f1_1h = Experiment_ML(setting)
+        # 원하는 시간 뽑아서 성능 계산
+        metrics2_1 = metric_classifier(y_test_label[:, 5], pred_test[:, 5])
+        metrics2_2 = metric_classifier(y_test_label[:, 17], pred_test[:, 17])
+        metrics2_3 = metric_classifier(y_test_label[:, 35], pred_test[:, 35])
+
+        # 전체 시간의 성능 계산
+        metrics3 = metric_all(y_test_label3, pred_test3)
+
+    elif args.model_name in ['RF', 'XGB']:        
+        """
+        TODO: result should return 3 experiments
+            1. each prediction time model
+            2. all prediction time at once prediciton model
+            3. seq2seq model (all range at once)
+        then I'm going to compare three results and choose to report at the paper
+        => ML로 단일시간 예측하는게 좋은지, seq2seq도 좋은지 얘기할것임
+        """
+        #TODO: tr, val, te 모드 정보가 들어가는 지 확인
+        #TODO: 위 주석에 언급한 3개 모드 중 어떤걸로 돌리는지 옵션으로 들어가야 함
+        y_test_label1, pred_test1 = Experiment_ML(setting, 'mode1')  # seq2scalar
+        y_test_label2, pred_test2 = Experiment_ML(setting, 'mode2')  # seq2vec
+        y_test_label3, pred_test3 = Experiment_ML(setting, 'mode3')  # seq2seq
+        
+        # calc metrics
+        metrics1 = metric_classifier(y_test_label1, pred_test1)
+
+        metrics2_1 = metric_classifier(y_test_label2[:, 0], pred_test2[:, 0])
+        metrics2_2 = metric_classifier(y_test_label2[:, 1], pred_test2[:, 1])
+        metrics2_3 = metric_classifier(y_test_label2[:, 2], pred_test2[:, 2])
+
+        metrics3 = metric_all(y_test_label3, pred_test3)
+
 
     else: # DL models
-        exp_DL = Experiment_DL(args)  # set experiment object
-        if args.do_train:
-            exp_DL.train(setting)
-        acc, f1, acc_1h, f1_1h = exp_DL.test(setting)
+        """
+        TODO: result should return 3 experiments
+            1. each prediction time model
+            2. all prediction time at once prediciton model
+            3. seq2seq model (all range at once)
+        then I'm going to compare three results and choose to report at the paper
+        => DL로 단일시간 예측하는게 좋은지, seq2seq이 좋은지 얘기할것임
+        """
+        #TODO: tr, val, te 모드 정보가 들어가는 지 확인
+        #TODO: 위 주석에 언급한 3개 모드 중 어떤걸로 돌리는지 옵션으로 들어가야 함
+        y_test_label, pred_test = Experiment_DL(setting)
+        
+        # calc metrics
+        metrics1 = metric_classifier(y_test_label1, pred_test1)
+
+        metrics2_1 = metric_classifier(y_test_label2[:, 0], pred_test2[:, 0])
+        metrics2_2 = metric_classifier(y_test_label2[:, 1], pred_test2[:, 1])
+        metrics2_3 = metric_classifier(y_test_label2[:, 2], pred_test2[:, 2])
+
+        metrics3 = metric_all(y_test_label3, pred_test3)
+
+    #FIXME: 최종 save table 형식, 파일이 뭐가 되야지 연구하기 편할까?
 
     print('*'*41)
-    print(f'Final Performance of model {args.model_name}:\n'\
-        #   f'acc:{acc}, f1:{f1},\n'\
-        f'acc_1h:{acc_1h}, f1_1h:{f1_1h}')
+    print(f'Final test metrics of {args.model_name}:\n')
+    for key in metrics:
+        print(f"{key}: {metrics[key]}\n")
     print('*'*41)
 
+    

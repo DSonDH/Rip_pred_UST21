@@ -2,7 +2,6 @@ from typing import Tuple
 import numpy as np
 import statsmodels.api as sm
 import itertools
-from metrics.NIA_metrics import metric_classifier, metric_regressor
 
 import warnings
 from statsmodels.tools.sm_exceptions import ConvergenceWarning
@@ -17,7 +16,7 @@ def SARIMAX_multiprocess(i: int, pred_len: int=None,
                          X_test: np.ndarray=None, y_test: np.ndarray=None
                          ) -> np.ndarray:
 
-    y_train_tmp = X_test[i, :, 11]
+    y_train_tmp = X_test[i, :, 10]
     x_train_tmp = X_test[i, :, :10]
     x_test_tmp = y_test[i, :, :10]
     
@@ -70,40 +69,40 @@ def SARIMAX_multiprocess(i: int, pred_len: int=None,
     return np.clip(pred_test_regressor, 0, 1)
 
 
-def Experiment_SARIMAX(dataset: object, n_worker:int=20)->Tuple:
+def Experiment_SARIMAX(dataset: object, pred_len: int=None, n_worker:int=20
+                       )->Tuple:
     """
     fit test set data using SARIMAX algorithm and 
     calculate accuracyy, f1 score for all test instances.
 
     Args: 
         dataset: dataset object which have train, val, test datset with scaler
+    Return:
+        (testset prediction output, testset prediction label)
     """
+    assert pred_len != None, 'pred_len argument should not be None'
 
     # Dataset
-    X_test = dataset.X_test  # N x 32 x 16
-    y_test = dataset.y_test  # N x 16 x 16
-    y_test_label = y_test[:, :, 11]
+
+    #FIXME: sample 숫자 일부러 줄인거 없애기
+    #FIXME: sample 숫자 일부러 줄인거 없애기
+    X_test = dataset.X_test[:30, ...]  # N x 32 x 16
+    y_test = dataset.y_test[:30, ...]  # N x 16 x 16
+    y_test_label = y_test[:, :, 10]
     # print(X_test.shape,y_test.shape)
 
     assert(X_test.shape[2] >= 11)
     assert(y_test.shape[2] >= 11)
 
     partial_wrapper = partial(SARIMAX_multiprocess, X_test=X_test, y_test=y_test, 
-                                                    pred_len=y_test.shape[1])
+                                                    pred_len=pred_len)
     pred_test = process_map(partial_wrapper, range(len(X_test)),
                             max_workers=n_worker, 
                             chunksize=1)
-    #TODO: minisample로 결과나오는 format확인하고 멀티프로세싱 복습하고 full data tmux로 처리하기
-    ㄴㅇㄹㄴㅇㄻㄻㄴ
+    # 병렬처리 후 : 20 test sample의 SARIMAX 결과 내는데 1분 소요됨
+    # list appended list (N x pred_len)
     
-    print(len(pred_test))
-    pred_test2 = np.array(pred_test)
-    print(pred_test)
-
-    acc, f1 = metric_classifier(np.array(y_test_label), np.array(pred_test))
-    # dummy = metric_regressor(np.array(y_test), pred_test.values)
-
-    return acc, f1
+    return y_test_label, np.array(pred_test)
 
 
 if __name__ == '__main__':

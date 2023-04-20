@@ -1,42 +1,54 @@
-from typing import List, Union, Tuple
+from typing import List, Union, Tuple, Dict
+
 import numpy as np
 from sklearn.metrics import accuracy_score, confusion_matrix, f1_score
-from sklearn.preprocessing import MinMaxScaler
 
 
-def metric_classifier(true: np.ndarray, pred: np.ndarray) -> List: 
+def metric_classifier(true: np.ndarray, pred: np.ndarray) -> Dict: 
     """
-    input shape : N_iter x batchSize x 8(prediction length, 80min)
-    즉 N_iter x batchsize 하면 total test instance 갯수가 됨.
+    true, pred 를 flatten하고 binarize 하여 2분류 판별 성능 계산
 
     Args:
-        input : pred(scaled), true(scaled)
-        output : probability of one batch
-
+        true : np.ndarray
+            N x 1 또는 N x 3 또는 N x pred_len 모양일 것임
+            shape이 무엇이던 flatten 하므로 상관없음.
+        pred : np.ndarray
+            shape이 무엇이던 flatten 하므로 상관없음.
     Return:
-        acc, f1, acc_1h, f1_1h, true, pred, true_1h, pred_1h
+        A dictionary containing; acc, f1,TP, FP, FN, TN
     """
-
-    true = true.reshape(-1, true.shape[-1])
-    pred = pred.reshape(-1, pred.shape[-1])
+    assert len(true) > 0 and len(pred) > 0, \
+        'Error of metric_all(): true or pred length is zero'
     
-    mmx_fn = MinMaxScaler()
-    mmx_fn.fit(true)
-    true_scale = mmx_fn.transform(true)
-    pred_scale = mmx_fn.transform(pred)
+    if type(true) != np.ndarray:
+        true = np.array(true)
+    if type(pred) != np.ndarray:
+        pred = np.array(pred)
 
-    pred_bin = 1 * (pred_scale >= 0.5)  # y.astype(int) 
+    true = true.flatten()
+    pred = pred.flatten()
 
-    true_flat = true_scale.flatten()
-    pred_bin_flat = pred_bin.flatten()
+    # convert probability to label
+    pred_bin = 1 * (pred >= 0.5)  # y.astype(int) 
     
-    acc = accuracy_score(true_flat, pred_bin_flat)
-    f1 = f1_score(true_flat, pred_bin_flat, zero_division=1.)
-    cm = confusion_matrix(true_flat, pred_bin_flat) 
-    print(f'[Confusion Matrix] \n {cm}, row : obs, columns : pred')
+    # TP, FP, FN, TN order
+    cm = confusion_matrix(true, pred_bin).flatten()
+    
+    if len(cm) == 1:  # make dummy zeros
+        if true[0] == 1:
+            cm = np.array([len(true), 0, 0, 0])
+        else:
+            cm = np.array([0, 0, 0, len(true)])
 
-    return acc, f1
+    result_dict = {}
+    result_dict['acc'] = accuracy_score(true, pred_bin)
+    result_dict['f1'] = f1_score(true, pred_bin, zero_division=1.)
+    result_dict['TP'] = cm[0]
+    result_dict['FP'] = cm[1]
+    result_dict['FN'] = cm[2]
+    result_dict['TN'] = cm[3]
 
+    return result_dict
     """
     # old way
     pred_round = pred.round()
@@ -66,7 +78,7 @@ def metric_classifier(true: np.ndarray, pred: np.ndarray) -> List:
     """
 
 
-def Corr(pred, true):
+def Corr(true: np.ndarray, pred: np.ndarray) -> float:
     sig_p = np.std(pred, axis=0)
     sig_g = np.std(true, axis=0)
     m_p = pred.mean(0)
@@ -76,11 +88,58 @@ def Corr(pred, true):
     corr = (corr[ind]).mean()
     return corr
 
-def metric_regressor(true: np.ndarray, pred: np.ndarray) -> Tuple: 
-    mae = np.mean(np.abs(pred - true))
-    mse = np.mean((pred - true) ** 2)
-    rmse = np.sqrt(mse)    
-    mape = np.mean(np.abs((pred - true) / true))
-    mspe = np.mean(np.square((pred - true) / true))
-    corr = Corr(pred, true)
-    return mae, mse, rmse, mape, mspe, corr
+def metric_regressor(true: np.ndarray, pred: np.ndarray) -> Dict:
+    """ true, pred로 성능 계산
+    Args:
+        true : np.ndarray
+            N x 1 또는 N x 3 또는 N x pred_len 모양일 것임
+            shape이 무엇이던 상관없음.
+        pred : np.ndarray
+            shape이 무엇이던 상관없음.
+    
+    Return:
+        A dictionary containing; acc, f1,TP, FP, FN, TN
+
+    ❗❗❕❕❕❗❗깨달음 노트
+        np.mean하면 N, T함께 계산(flatten해서 계산) T축 먼저 metric 계산해서 
+        instance별 성능 뽑고 이 성능을 평균내는거 아닌가 싶었는데, 
+        수식으로 써보면 같음 ㄷㄷㄷ
+        즉, time series를 따로 뗴서 하나의 instance로 봐도 무방하다는 것임.
+        즉, 시계열 추세에 맞지않는 metric이고, 이를 개선하면 논문감? ㅎㅎ
+    """
+    assert len(true) > 0 and len(pred) > 0, \
+        'Error of metric_all(): true or pred length is zero'
+    
+    if type(true) != np.ndarray:
+        true = np.array(true)
+    if type(pred) != np.ndarray:
+        pred = np.array(pred)
+    
+    result_dict = {}
+    result_dict['mae'] = np.mean(np.abs(pred - true))
+    result_dict['mse'] = np.mean((pred - true) ** 2)
+    result_dict['rmse'] = np.sqrt(result_dict['mse'])
+    result_dict['mape'] = np.mean(np.abs((pred - true) / true))
+    result_dict['mspe'] = np.mean(np.square((pred - true) / true))
+    result_dict['corr'] = Corr(true, pred)
+
+    return result_dict
+
+
+def metric_all(true: np.ndarray, pred: np.ndarray) -> Dict: 
+    """ 
+    from metric_classifier() and metric_regressor(),
+    get all metric as dictionary items and return a metrics
+    """
+    assert len(true) > 0 and len(pred) > 0, \
+        'Error of metric_all(): true or pred length is zero'
+
+    if type(true) != np.ndarray:
+        true = np.array(true)
+    if type(pred) != np.ndarray:
+        pred = np.array(pred)
+    
+    metrics = metric_classifier(true, pred)
+    metrics.update(metric_regressor(true, pred))
+    
+    return metrics

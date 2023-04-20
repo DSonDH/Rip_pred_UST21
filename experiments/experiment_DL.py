@@ -18,7 +18,7 @@ from models.DNN import DNN
 from models.SCINet_decompose import SCINet_decomp
 from utils.tools import (EarlyStopping, adjust_learning_rate, load_model,
                          save_model)
-
+from typing import Any
 
 class Experiment_DL(Exp_Basic):
     def __init__(self, args):
@@ -65,6 +65,22 @@ class Experiment_DL(Exp_Basic):
                                 num_workers=args.num_workers,
                                 drop_last=False
                             )
+
+
+    def __call__(self, args: Any, **kwds: Any) -> Any:
+        """main funciton of this Experimental_DL class object
+        Args:
+            args
+        Return:
+            (y_test_label, pred_test)
+        """
+        #TODO: complete this call method
+        
+        if args.do_train:
+            self.train(args)
+        y_test_label, pred_test = self.test(args)
+
+        return y_test_label, pred_test
 
 
     def _build_model(self):
@@ -371,4 +387,4 @@ class Experiment_DL(Exp_Basic):
 
             return outputs, outputs_scaled, 0, 0, batch_y, batch_y_scaled
         else:
-            print()
+            print("\n\n Undefined model name was given !!!!\n\n")
