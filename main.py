@@ -6,7 +6,9 @@ from experiments.experiment_ML import Experiment_ML
 
 from metrics.NIA_metrics import metric_classifier, metric_regressor, metric_all
 
-
+""" rip current prediction of 1h, 3h, 6h
+using classification fashion and regression fashion models
+"""
 # ===================================================
 # configs usually changed
 
@@ -27,8 +29,8 @@ do_train = True #FIXME:
 gpu_idx = '1' #FIXME:
 
 # model setting
-seq_len = 32
-pred_len = 16
+seq_len = 30 #FIXME:
+pred_len = 36 #FIXME:
 itv = 5  # timepoint 간격이 얼마인지에 따라서 인덱싱 달리
 # TODO: 11 + 5에서 onehot 효과 없음이 보여지면 11개 feature만 쓰도록.
 in_dim = 11 + 5  # n_feature + 5 one-hot
@@ -44,7 +46,6 @@ lr = 0.001
 study = 'NIA'
 NIA_work = 'ripcurrent_100p'  # data 전처리 meta file 저장이름 변경용
 root_path = f'./datasets/{study}/'
-nia_csv_base = True # False : json file 내 날짜로 instance 생성
 year = 'allYear'  # data read할 csv파일
 port_list = ['AllPorts']
 fname = f'obs_qc'
@@ -62,7 +63,6 @@ for port in port_list:
     parser.add_argument('--NIA_work', type=str, required=False, default=NIA_work, help='work name of NIA')
     parser.add_argument('--data', type=str, required=False, default=study, help='name of dataset')
     parser.add_argument('--year', type=str, required=False, default=year, help='Dataset year')
-    parser.add_argument('--nia_csv_base', type=bool, required=False, default=nia_csv_base, help='gen data from csv or json')
     # parser.add_argument('--is_new_test', type=bool, required=False, default=is_new_test, help='need to make new test save file?')
     parser.add_argument('--itv', type=int, required=False, default=itv, help='name of dataset')
     parser.add_argument('--port', type=str, required=False, default=port, help='name of port')
@@ -149,12 +149,8 @@ for port in port_list:
     
     #FIXME: 최종 save table 형식, 파일이 뭐가 되야지 연구하기 편할까?
     if args.model_name == 'SARIMAX':
-        from data_process import (NIA_data_loader_csvOnly_YearSplit,
-                                NIA_data_loader_jsonRead)
-        if args.nia_csv_base:
-            DatasetClass = NIA_data_loader_csvOnly_YearSplit.Dataset_NIA
-        else:
-            DatasetClass = NIA_data_loader_jsonRead.Dataset_NIA
+        from data_process import NIA_data_loader_csvOnly_YearSplit
+        DatasetClass = NIA_data_loader_csvOnly_YearSplit.Dataset_NIA
 
         data_set = DatasetClass(
             root_path = args.root_path,
@@ -166,16 +162,19 @@ for port in port_list:
             args = args
         )
         
+        assert pred_len >= 35, \
+            'designated pred length is shorter than expected output length'
+
         # SARIMAX는 training과정이 없으며, 언제나 testset을 활용함
         y_test_label, pred_test = Experiment_SARIMAX(data_set, 
                                             pred_len=pred_len,
-                                            n_worker=20
+                                            n_worker=201
                                     )
 
         # 원하는 시간 뽑아서 성능 계산
         metrics2_1 = metric_classifier(y_test_label[:, 5], pred_test[:, 5])
-        metrics2_2 = metric_classifier(y_test_label[:, 17], pred_test[:, 17])
-        metrics2_3 = metric_classifier(y_test_label[:, 35], pred_test[:, 35])
+        metrics2_3 = metric_classifier(y_test_label[:, 17], pred_test[:, 17])
+        metrics2_6 = metric_classifier(y_test_label[:, 35], pred_test[:, 35])
 
         # 전체 시간의 성능 계산
         metrics3 = metric_all(y_test_label3, pred_test3)
@@ -191,9 +190,14 @@ for port in port_list:
         """
         #TODO: tr, val, te 모드 정보가 들어가는 지 확인
         #TODO: 위 주석에 언급한 3개 모드 중 어떤걸로 돌리는지 옵션으로 들어가야 함
+
+        #TODO: 1, 3, 6 예측시간에 대해서 pred_len을 달리 해야할까?
+        #입력자료 길이는 어떻게 고정할까 ... ? HP로 두고 tuning할까 ?
+
+
         y_test_label1, pred_test1 = Experiment_ML(setting, 'mode1')  # seq2scalar
-        y_test_label2, pred_test2 = Experiment_ML(setting, 'mode2')  # seq2vec
-        y_test_label3, pred_test3 = Experiment_ML(setting, 'mode3')  # seq2seq
+        y_test_label3, pred_test3 = Experiment_ML(setting, 'mode2')  # seq2vec
+        y_test_label6, pred_test6 = Experiment_ML(setting, 'mode3')  # seq2seq
         
         # calc metrics
         metrics1 = metric_classifier(y_test_label1, pred_test1)
@@ -216,6 +220,13 @@ for port in port_list:
         """
         #TODO: tr, val, te 모드 정보가 들어가는 지 확인
         #TODO: 위 주석에 언급한 3개 모드 중 어떤걸로 돌리는지 옵션으로 들어가야 함
+
+        #TODO: 1, 3, 6 예측시간에 대해서 pred_len을 달리 해야할까?
+        #TODO: scinet 같은 경우는 input_len, pred_len이 2의 제곱이 되야하므로 
+        # 따로 처리하는 코드 필요
+
+        #입력자료 길이는 어떻게 고정할까 ... ? HP로 두고 tuning할까 ?
+        
         y_test_label, pred_test = Experiment_DL(setting)
         
         # calc metrics
@@ -229,10 +240,10 @@ for port in port_list:
 
     #FIXME: 최종 save table 형식, 파일이 뭐가 되야지 연구하기 편할까?
 
+
+def print_performance(metrics: dict) -> None:
     print('*'*41)
     print(f'Final test metrics of {args.model_name}:\n')
     for key in metrics:
         print(f"{key}: {metrics[key]}\n")
     print('*'*41)
-
-    

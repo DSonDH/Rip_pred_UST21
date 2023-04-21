@@ -9,8 +9,7 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
 warnings.filterwarnings('ignore')
-from data_process import (NIA_data_loader_csvOnly_YearSplit,
-                          NIA_data_loader_jsonRead)
+from data_process import NIA_data_loader_csvOnly_YearSplit
 from experiments.exp_basic import Exp_Basic
 from metrics.NIA_metrics import metric_regressor, metric_classifier
 
@@ -26,10 +25,7 @@ class Experiment_DL(Exp_Basic):
         self.print_per_iter = 100;
 
         # train / val / test dataset and dataloader setting
-        if args.nia_csv_base:
-            DatasetClass = NIA_data_loader_csvOnly_YearSplit.Dataset_NIA
-        else:
-            DatasetClass = NIA_data_loader_jsonRead.Dataset_NIA
+        DatasetClass = NIA_data_loader_csvOnly_YearSplit.Dataset_NIA
             
         self.dataset = DatasetClass(
                            root_path = args.root_path,

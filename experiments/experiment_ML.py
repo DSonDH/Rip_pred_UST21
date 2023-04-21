@@ -7,8 +7,8 @@ import torch.nn as nn
 from torch import optim
 from torch.utils.data import DataLoader
 warnings.filterwarnings('ignore')
-from data_process import (NIA_data_loader_csvOnly_YearSplit,
-                          NIA_data_loader_jsonRead)
+from data_process import NIA_data_loader_csvOnly_YearSplit
+                          
 from experiments.exp_basic import Exp_Basic
 
 from typing import Any
@@ -18,11 +18,7 @@ class Experiment_ML(Exp_Basic):
         super(Experiment_ML, self).__init__(args)
         self.print_per_iter = 100;
 
-        # train / val / test dataset and dataloader setting
-        if args.nia_csv_base:
-            DatasetClass = NIA_data_loader_csvOnly_YearSplit.Dataset_NIA
-        else:
-            DatasetClass = NIA_data_loader_jsonRead.Dataset_NIA
+        DatasetClass = NIA_data_loader_csvOnly_YearSplit.Dataset_NIA
             
         self.dataset = DatasetClass(
                            root_path = args.root_path,
