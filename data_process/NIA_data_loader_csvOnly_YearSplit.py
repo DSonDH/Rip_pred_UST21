@@ -25,13 +25,13 @@ class Dataset_NIA(Dataset):
                  args: dict=None
                 ) -> None:
         
-        assert size != None, 'Please specify seq_len and pred_len'
+        assert size != None, 'Please specify input_len and pred_len'
         if args.model_name == 'SCINet':
             # !!!! 모델에 2^n 제곱 길이만 들어갈 수 있으므로 10분간격 시간단위(6의배수)는 불가능
-            self.seq_len = 2 * 8 * 2  # lagging len 
+            self.input_len = 2 * 8 * 2  # lagging len 
             self.pred_len = 8 * 2 
         else:
-            self.seq_len = size[0]
+            self.input_len = size[0]
             self.pred_len = size[1]
 
         # init
@@ -64,8 +64,8 @@ class Dataset_NIA(Dataset):
         instance_list = []
         nonan = 0
 
-        for x_start in range(self.seq_len, len(df)):
-            y_end = x_start + self.seq_len + self.pred_len
+        for x_start in range(self.input_len, len(df)):
+            y_end = x_start + self.input_len + self.pred_len
 
             # 일단 X, y합쳐서 뽑고, 나중에 분리
             Xy_instance = df.iloc[x_start:y_end, :]
@@ -142,9 +142,9 @@ class Dataset_NIA(Dataset):
                 print(f'N1 / N_0 ratio = {n1 / (n0 + n1) * 100:.2f} \n')
 
                 # FIXME: add onehot 효과 살펴보고, 효과 없으면 지우기
-                onehot = np.zeros(n_sites)
-                onehot[i] = 1
-                df[['site_' + item for item in site_names]] = onehot
+                # onehot = np.zeros(n_sites)
+                # onehot[i] = 1
+                # df[['site_' + item for item in site_names]] = onehot
 
                 # train validation test split = 2 year: 1 year : 1 year
                 Xy_train = df[: '2020-09-01 00:00']
@@ -160,12 +160,12 @@ class Dataset_NIA(Dataset):
                      )
 
                 # detach X, y seperately and append all site together
-                X_tr.append(Xy_inst_tr[:, :self.seq_len, :])
-                y_tr.append(Xy_inst_tr[:, self.seq_len:, :])
-                X_val.append(Xy_inst_val[:, :self.seq_len, :])
-                y_val.append(Xy_inst_val[:, self.seq_len:, :])
-                X_te.append(Xy_inst_te[:, :self.seq_len, :])
-                y_te.append(Xy_inst_te[:, self.seq_len:, :])
+                X_tr.append(Xy_inst_tr[:, :self.input_len, :])
+                y_tr.append(Xy_inst_tr[:, self.input_len:, :])
+                X_val.append(Xy_inst_val[:, :self.input_len, :])
+                y_val.append(Xy_inst_val[:, self.input_len:, :])
+                X_te.append(Xy_inst_te[:, :self.input_len, :])
+                y_te.append(Xy_inst_te[:, self.input_len:, :])
 
             # Step3: merge array finally
             X_tr = np.concatenate(X_tr, axis=0)

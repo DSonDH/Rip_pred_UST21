@@ -26,7 +26,7 @@ class Experiment_ML(Exp_Basic):
                            data = args.data,
                            port = args.port,
                            data_path = args.data_path,
-                           size = [args.seq_len, args.pred_len],
+                           size = [args.input_len, args.pred_len],
                            args = args
                        )
 

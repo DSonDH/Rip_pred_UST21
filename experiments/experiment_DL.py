@@ -22,8 +22,8 @@ from typing import Any
 class Experiment_DL(Exp_Basic):
     def __init__(self, args):
         super(Experiment_DL, self).__init__(args)
-        self.print_per_iter = 100;
-
+        self.print_per_iter = 100
+        
         # train / val / test dataset and dataloader setting
         DatasetClass = NIA_data_loader_csvOnly_YearSplit.Dataset_NIA
             
@@ -33,7 +33,7 @@ class Experiment_DL(Exp_Basic):
                            data = args.data,
                            port = args.port,
                            data_path = args.data_path,
-                           size = [args.seq_len, args.pred_len],
+                           size = [args.input_len, args.pred_len],
                            args = args
                        )
 
@@ -85,7 +85,7 @@ class Experiment_DL(Exp_Basic):
         if self.args.model_name == 'DNN':
             model = DNN(
                         features=[
-                                  (self.args.seq_len * self.args.in_dim, 512), 
+                                  (self.args.input_len * self.args.input_dim, 512), 
                                   (512, 1024), 
                                   (1024, 2048), 
                                   (2048, 1024),
@@ -100,8 +100,8 @@ class Experiment_DL(Exp_Basic):
         elif self.args.model_name == 'SCINet':  # and self.args.decompose:
             model = SCINet_decomp(
                         output_len=self.args.pred_len,
-                        input_len=self.args.seq_len,
-                        input_dim= self.args.in_dim,
+                        input_len=self.args.input_len,
+                        input_dim=self.args.input_dim,
                         hid_size=self.args.hidden_size,
                         num_stacks=self.args.stacks,
                         num_levels=self.args.levels,
@@ -138,8 +138,6 @@ class Experiment_DL(Exp_Basic):
 
 
     def train(self, setting):
-        """ do train
-        """
         path = os.path.join(self.args.checkpoints, setting)
         print(path)
         if not os.path.exists(path):
@@ -235,9 +233,6 @@ class Experiment_DL(Exp_Basic):
 
 
     def valid(self, valid_data, valid_loader, criterion):
-        """
-        do validation
-        """
         self.model.eval()
         total_loss = []
         preds = []
@@ -362,9 +357,9 @@ class Experiment_DL(Exp_Basic):
             assert self.args.stacks == 2, "SCINet stack size is supposed to be larger than 1"
 
             # Except one hot encoding
-            outputs = outputs[..., :-5]
-            mid = mid[..., :-5]
-            batch_y = batch_y[..., :-5]
+            # outputs = outputs[..., :-5]
+            # mid = mid[..., :-5]
+            # batch_y = batch_y[..., :-5]
 
             outputs_scaled = dataset_object.inverse_transform(outputs)
             mid_scaled = dataset_object.inverse_transform(mid)

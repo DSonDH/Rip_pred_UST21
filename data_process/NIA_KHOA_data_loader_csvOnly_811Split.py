@@ -24,10 +24,10 @@ class Dataset_NIA_KHOA(Dataset):
                  size=None, data_path='', args=None):
     
         if size == None:
-            self.seq_len = 2*8*2  # lagging len !!!! 모델에 2^n 제곱 길이만 들어갈 수 있으므로 10분간격 시간단위(6의배수)는 불가능
+            self.input_len = 2*8*2  # lagging len !!!! 모델에 2^n 제곱 길이만 들어갈 수 있으므로 10분간격 시간단위(6의배수)는 불가능
             self.pred_len = 8*2  # !!!! 모델에 2^n 제곱 길이만 들어갈 수 있으므로 10분간격 시간단위(6의배수)는 불가능
         else:
-            self.seq_len = size[0]
+            self.input_len = size[0]
             self.pred_len = size[1]
         # init
         assert flag in ['train', 'test', 'val']
@@ -142,8 +142,8 @@ class Dataset_NIA_KHOA(Dataset):
                     instance_list = []
                     origin_idx_list = []
                     N_nan = 0
-                    for x_start in range(self.seq_len, len(df)):
-                        y_end = x_start + self.seq_len + self.pred_len
+                    for x_start in range(self.input_len, len(df)):
+                        y_end = x_start + self.input_len + self.pred_len
                         # 일단 X, y합쳐서 뽑고, 나중에 분리
                         Xy_instance = df.iloc[x_start:y_end, :]
                         if not Xy_instance.isnull().values.any():
@@ -206,8 +206,8 @@ class Dataset_NIA_KHOA(Dataset):
                     Xy = np.concatenate((Xy, onehot), axis=2)
 
                     # merge X, y seperately
-                    X.append(Xy[:, :self.seq_len, :])
-                    y.append(Xy[:, self.seq_len:, :])
+                    X.append(Xy[:, :self.input_len, :])
+                    y.append(Xy[:, self.input_len:, :])
                     print(f'NoNan : Nan of {site} = {num_instance} : {N_nan}')
                     print(f'[{site}] tr:val:te = {len_tr} : {len_val} : {len_te}')
 

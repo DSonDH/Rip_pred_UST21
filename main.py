@@ -29,11 +29,12 @@ do_train = True #FIXME:
 gpu_idx = '1' #FIXME:
 
 # model setting
-seq_len = 30 #FIXME:
+input_len = 30 #FIXME:
 pred_len = 36 #FIXME:
 itv = 5  # timepoint 간격이 얼마인지에 따라서 인덱싱 달리
+
 # TODO: 11 + 5에서 onehot 효과 없음이 보여지면 11개 feature만 쓰도록.
-in_dim = 11 + 5  # n_feature + 5 one-hot
+input_dim = 11 + 5  # n_feature + 5 one-hot
 
 # trainig setting
 n_workers = 10
@@ -79,8 +80,8 @@ for port in port_list:
     parser.add_argument('--devices', type=str, default=gpu_idx,help='device ids of multile gpus')
 
         ### -------  input/output length and 'number of feature' settings --------------                                                                            
-    parser.add_argument('--in_dim', type=int, default=in_dim, help='number of input features')
-    parser.add_argument('--seq_len', type=int, default=seq_len, help='input sequence length of model encoder, look back window')
+    parser.add_argument('--in_dim', type=int, default=input_dim, help='number of input features')
+    parser.add_argument('--input_len', type=int, default=input_len, help='input sequence length of model encoder, look back window')
     # parser.add_argument('--label_len', type=int, default=48, help='start token length of Informer decoder')  # input, label곂치는걸 원치 않으므로 안씀
     parser.add_argument('--pred_len', type=int, default=pred_len, help='prediction sequence length, horizon')
     parser.add_argument('--concat_len', type=int, default=0)
@@ -97,7 +98,7 @@ for port in port_list:
     parser.add_argument('--patience', type=int, default=patience, help='early stopping patience')
     parser.add_argument('--lr', type=float, default=lr, help='optimizer learning rate')
     parser.add_argument('--loss', type=str, default='mae',help='loss function')
-    parser.add_argument('--lradj', type=int, default=1,help='adjust learning rate')
+    parser.add_argument('--lradj', type=int, default=1, help='adjust learning rate')
     parser.add_argument('--use_amp', action='store_true', help='use automatic mixed precision training', default=False)
     parser.add_argument('--save', type=bool, default =False, help='save the output results')
     parser.add_argument('--model_name', type=str, default=f'{model}')
@@ -142,7 +143,7 @@ for port in port_list:
     torch.backends.cudnn.enabled = True
 
     setting = '{}_{}_sl{}_pl{}_lr{}_bs{}_hid{}_s{}_l{}_dp{}_inv{}'.format(
-                    args.model,args.data, args.seq_len, args.pred_len,args.lr,
+                    args.model,args.data, args.input_len, args.pred_len,args.lr,
                     args.batch_size,args.hidden_size,args.stacks, 
                     args.levels,args.dropout,args.inverse)
 
@@ -158,7 +159,7 @@ for port in port_list:
             data = args.data,
             port = args.port,
             data_path = args.data_path,
-            size = [args.seq_len, args.pred_len],
+            size = [args.input_len, args.pred_len],
             args = args
         )
         
@@ -166,9 +167,11 @@ for port in port_list:
             'designated pred length is shorter than expected output length'
 
         # SARIMAX는 training과정이 없으며, 언제나 testset을 활용함
-        y_test_label, pred_test = Experiment_SARIMAX(data_set, 
-                                            pred_len=pred_len,
-                                            n_worker=201
+        y_test_label, pred_test = Experiment_SARIMAX(
+                                      data_set, 
+                                      pred_style=pred_len,
+                                      pred_len=pred_len,
+                                      n_worker=201
                                     )
 
         # 원하는 시간 뽑아서 성능 계산

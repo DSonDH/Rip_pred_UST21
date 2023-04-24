@@ -24,10 +24,10 @@ class Dataset_NIA(Dataset):
                  features='M', data_path='', scale=True):
     
         if size == None:
-            self.seq_len = 2*8*2  # lagging len !!!! 모델에 2^n 제곱 길이만 들어갈 수 있으므로 10분간격 시간단위(6의배수)는 불가능
+            self.input_len = 2*8*2  # lagging len !!!! 모델에 2^n 제곱 길이만 들어갈 수 있으므로 10분간격 시간단위(6의배수)는 불가능
             self.pred_len = 8*2  # !!!! 모델에 2^n 제곱 길이만 들어갈 수 있으므로 10분간격 시간단위(6의배수)는 불가능
         else:
-            self.seq_len = size[0]
+            self.input_len = size[0]
             self.pred_len = size[1]
         # init
         assert flag in ['train', 'test', 'val']
@@ -85,7 +85,7 @@ class Dataset_NIA(Dataset):
                     obs_time_cnvrt = pd.to_datetime(obs_time, format='%Y%m%d_%H%M%S')
                     idx = df.index.get_loc(obs_time_cnvrt, method='nearest')
                     
-                    x_start = idx - self.seq_len + 1
+                    x_start = idx - self.input_len + 1
                     y_end = idx + self.pred_len + 1
 
                     if x_start < 0 or y_end > len(df):
@@ -124,14 +124,14 @@ class Dataset_NIA(Dataset):
             else:
                 print(f'I found processed {self.mode} file. skip data preprocessing!!')
                 data = joblib.load(f'{self.root_path}/ripcurrent_10p/processed_{self.mode}_jsonBase.pkl')
-                num_instance = data.shape[0]//(self.seq_len + self.pred_len)
+                num_instance = data.shape[0]//(self.input_len + self.pred_len)
                 self.scaler = joblib.load(f'{self.root_path}/NIA_train_{self.port}_scaler_jsonBase.pkl')
             
             # reshape to bachsize x timepoint x numfeatures            
             data2 = data.reshape((num_instance, -1, data.shape[-1]))
 
-            self.X = data2[:,:self.seq_len,:]
-            self.y = data2[:,self.seq_len:,:]
+            self.X = data2[:,:self.input_len,:]
+            self.y = data2[:,self.input_len:,:]
 
     def __getitem__(self, index):
         return self.X[index, ...], self.y[index, ...]

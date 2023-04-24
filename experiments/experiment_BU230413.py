@@ -33,7 +33,7 @@ class Experiment_DL(Exp_Basic):
         if self.args.model_name == 'DNN':
             model = DNN(
                         features=[
-                                  (self.args.seq_len * self.args.in_dim, 512), 
+                                  (self.args.input_len * self.args.in_dim, 512), 
                                   (512, 1024), 
                                   (1024, 2048), 
                                   (2048, 1024),
@@ -48,7 +48,7 @@ class Experiment_DL(Exp_Basic):
         elif self.args.model_name == 'SCINet':  # and self.args.decompose:
             model = SCINet_decomp(
                         output_len=self.args.pred_len,
-                        input_len=self.args.seq_len,
+                        input_len=self.args.input_len,
                         input_dim= self.args.in_dim,
                         hid_size=self.args.hidden_size,
                         num_stacks=self.args.stacks,
@@ -82,7 +82,7 @@ class Experiment_DL(Exp_Basic):
             port = args.port,
             data_path = args.data_path,
             flag = flag,
-            size = [args.seq_len, args.pred_len],
+            size = [args.input_len, args.pred_len],
             args = args
         )
 

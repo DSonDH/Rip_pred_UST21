@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 root_path = './datasets/NIA/'
 site_names = ['DC', 'HD', 'JM', 'NS', 'SJ']
 angle_inci_beach = [245, 178, 175, 47, 142]
-seq_len = 32
+input_len = 32
 pred_len = 16
 
 featueres = ['rip index', 'wave height', 'wave period', 'tide height', 
@@ -49,8 +49,8 @@ for year in [2019, 2020, 2021, 2022]:
         origin_idx_list = []
         N_nan = 0
 
-        for x_start in range(seq_len, len(df)):
-            y_end = x_start + seq_len + pred_len
+        for x_start in range(input_len, len(df)):
+            y_end = x_start + input_len + pred_len
             # 일단 X, y합쳐서 뽑고, 나중에 분리
             Xy_instance = df.iloc[x_start:y_end, :]
             if not Xy_instance.isnull().values.any():
@@ -62,15 +62,15 @@ for year in [2019, 2020, 2021, 2022]:
         num_instance = len(instance_list)
         Xy_full = np.array(instance_list)
 
-        X = Xy_full[:, :seq_len, :]
-        y = Xy_full[:, seq_len:, :]
+        X = Xy_full[:, :input_len, :]
+        y = Xy_full[:, input_len:, :]
         
         # drawing start !!
         for idx in range(0, len(X), 100):
             fig, axs = plt.subplots(nrows=X.shape[-1], figsize=(10, 9))
 
             for ii, feature in enumerate(featueres):
-                x = np.arange(seq_len)
+                x = np.arange(input_len)
                 y = X[idx, ..., ii]
 
                 axs[ii].plot(x, y, color='b', label = f'{feature}')
