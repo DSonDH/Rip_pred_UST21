@@ -15,32 +15,27 @@ warnings.filterwarnings('ignore')
 
 
 class Dataset_NIA(Dataset):
-    def __init__(self, 
-                 root_path: str,
-                 NIA_work: str,
-                 data: str,
-                 port: str=None, 
-                 size: Union[List, None]=None,
-                 data_path: str='',
-                 args: dict=None
-                ) -> None:
+    def __init__(self, args: dict=None, flag: str=None) -> None:
+        assert flag != None, "Please specify 'train' or 'val' or 'test' flag"
+        assert args.pred_len != None and args.input_len != None, \
+            'Please specify input_len and pred_len'
         
-        assert size != None, 'Please specify input_len and pred_len'
+        # init
         if args.model_name == 'SCINet':
             # !!!! 모델에 2^n 제곱 길이만 들어갈 수 있으므로 10분간격 시간단위(6의배수)는 불가능
             self.input_len = 2 * 8 * 2  # lagging len 
             self.pred_len = 8 * 2 
         else:
-            self.input_len = size[0]
-            self.pred_len = size[1]
-
-        # init
-        self.NIA_work = NIA_work
-        self.root_path = root_path
-        self.data_path = data_path
-        self.data = data
-        self.port = port
+            self.input_len = args.input_len
+            self.pred_len = args.pred_len
+        self.input_dim = args.input_dim
+        self.NIA_work = args.NIA_work
+        self.root_path = args.root_path
+        self.data_path = args.data_path
+        self.data = args.data
+        self.port = args.port
         self.args = args
+        self.flag = flag
 
         self.__read_data__()
 
@@ -48,13 +43,18 @@ class Dataset_NIA(Dataset):
     def load_df(self, 
                 csv_pth: str, 
                 site: str, 
-                angle_inci_beach: int
+                angle_inci_beach: int,
+                input_dim: int
                ) -> pd.DataFrame:
 
+        
         df = pd.read_csv(f'{csv_pth}/{site}-total.csv', encoding='euc-kr')
         df = df.iloc[:,1:]
         df['ob time'] = pd.to_datetime(df['ob time'])
         df = df.set_index('ob time')
+        if input_dim < 11:
+            #TODO: find no specified features and selctively drop them
+            df = df.drop(columns=df.columns[5])
         df = df.fillna(method='ffill', limit=2).fillna(method='bfill', limit=2)
         df['wave direction'] -= angle_inci_beach  # wave direction 보정
         return df
@@ -108,7 +108,6 @@ class Dataset_NIA(Dataset):
             save the normalized files
             when loading saved file : the file is already normalized
         """
-
         self.scaler = StandardScaler() #MinMaxScaler()
         site_names = ['DC', 'HD', 'JM', 'NS', 'SJ']
         angle_inci_beach = [245, 178, 175, 47, 142]  # incidence angle of each beach
@@ -132,7 +131,7 @@ class Dataset_NIA(Dataset):
             for i, site in enumerate(site_names):
                 print(f' ## processing {site} for train')
 
-                df = self.load_df(csv_pth, site, angle_inci_beach[i])
+                df = self.load_df(csv_pth, site, angle_inci_beach[i], self.input_dim)
                 
                 # print label ratio
                 n1 = sum(df['RipLabel'] == 1)
@@ -196,26 +195,15 @@ class Dataset_NIA(Dataset):
                 f'{self.root_path}/{self.NIA_work}_processed_X_test_{year}_YearSplit.pkl')
             joblib.dump(y_te, 
                 f'{self.root_path}/{self.NIA_work}_processed_y_test_{year}_YearSplit.pkl')
-            
-        # when saved pre-processed file exist
-        self.X_train = joblib.load(
-                f'{self.root_path}/{self.NIA_work}_processed_X_train_{year}_YearSplit.pkl')
-        self.y_train = joblib.load(
-                f'{self.root_path}/{self.NIA_work}_processed_y_train_{year}_YearSplit.pkl')
-        self.X_val = joblib.load(
-                f'{self.root_path}/{self.NIA_work}_processed_X_val_{year}_YearSplit.pkl')
-        self.y_val = joblib.load(
-                f'{self.root_path}/{self.NIA_work}_processed_y_val_{year}_YearSplit.pkl')
-        self.X_test = joblib.load(
-                f'{self.root_path}/{self.NIA_work}_processed_X_test_{year}_YearSplit.pkl')
-        self.y_test = joblib.load(
-                f'{self.root_path}/{self.NIA_work}_processed_y_test_{year}_YearSplit.pkl')
 
+        # when saved pre-processed file exist
+        self.X = joblib.load(
+                f'{self.root_path}/{self.NIA_work}_processed_X_{self.flag}_{year}_YearSplit.pkl')
+        self.y = joblib.load(
+                f'{self.root_path}/{self.NIA_work}_processed_y_{self.flag}_{year}_YearSplit.pkl')
         self.scaler = joblib.load(  # train 기간에 대해 맞춰진 것
                 f'{self.root_path}/{self.NIA_work}_NIA_train_{self.port}_{year}_scaler_YearSplit.pkl')
-        #TODO:
-        # print('check if loaded file is already scaled (standard scaler)')
-
+        
 
     def __getitem__(self, index):
         return self.X[index, ...], self.y[index, ...]

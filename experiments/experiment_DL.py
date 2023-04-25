@@ -20,63 +20,62 @@ from utils.tools import (EarlyStopping, adjust_learning_rate, load_model,
 from typing import Any
 
 class Experiment_DL(Exp_Basic):
+    """ Overall experiment pipelines are implemented in OOP style
+    __init__()
+        : prepare data
+    _build_model()
+        : generate model objects
+    _select_optimizer()
+        : call optimization function
+    _select_criterion()
+        : call loss function
+    train()
+        : do train process
+    valid()
+    test()
+        FIXME: valid, test 중복되는거 같은데 중복 없애기
+    _process_one_batch()
+        : get ground truth, prediction result of one batch
+        both with scaled and without scaled
+    """
     def __init__(self, args):
         super(Experiment_DL, self).__init__(args)
         self.print_per_iter = 100
         
-        # train / val / test dataset and dataloader setting
-        DatasetClass = NIA_data_loader_csvOnly_YearSplit.Dataset_NIA
-            
-        self.dataset = DatasetClass(
-                           root_path = args.root_path,
-                           NIA_work = args.NIA_work,
-                           data = args.data,
-                           port = args.port,
-                           data_path = args.data_path,
-                           size = [args.input_len, args.pred_len],
-                           args = args
+        # train / validation / test dataset and dataloader setting
+        self.dataset_train = NIA_data_loader_csvOnly_YearSplit.Dataset_NIA(args=args,
+                                                                           flag='train'
+                        )
+        self.dataset_val = NIA_data_loader_csvOnly_YearSplit.Dataset_NIA(args=args,
+                                                                         flag='val'
+                      )
+        self.dataset_test = NIA_data_loader_csvOnly_YearSplit.Dataset_NIA(args=args,
+                                                                          flag='test'
                        )
 
-        #FIXME: for debug, check time range overlap or shape
-        #FIXME: analyze statistics of train/val/test set
-
+        #TODO: for debug, check time range overlap or shape
+        #TODO: analyze statistics of train/val/test set
         self.train_loader = DataLoader(
-                                self.dataset.train_set,
+                                self.dataset_train,
                                 batch_size=args.batch_size,
                                 shuffle=True,
                                 num_workers=args.num_workers,
                                 drop_last=True
                             )
         self.val_loader =   DataLoader(
-                                self.dataset.val_set,
+                                self.dataset_val,
                                 batch_size=args.batch_size,
                                 shuffle=True,
                                 num_workers=args.num_workers,
                                 drop_last=True
                             )
         self.test_loader =  DataLoader(
-                                self.dataset.test_set,
+                                self.dataset_test,
                                 batch_size=args.batch_size,
                                 shuffle=False,
                                 num_workers=args.num_workers,
                                 drop_last=False
                             )
-
-
-    def __call__(self, args: Any, **kwds: Any) -> Any:
-        """main funciton of this Experimental_DL class object
-        Args:
-            args
-        Return:
-            (y_test_label, pred_test)
-        """
-        #TODO: complete this call method
-        
-        if args.do_train:
-            self.train(args)
-        y_test_label, pred_test = self.test(args)
-
-        return y_test_label, pred_test
 
 
     def _build_model(self):
@@ -158,9 +157,9 @@ class Experiment_DL(Exp_Basic):
 
         if self.args.resume:
             self.model, lr, epoch_start = load_model(
-                                                     self.model, path, 
-                                                     model_name=self.args.data, 
-                                                     horizon=self.args.horizon
+                                              self.model, path, 
+                                              model_name=self.args.data, 
+                                              horizon=self.args.horizon
                                           )
         else:
             epoch_start = 0
@@ -175,7 +174,9 @@ class Experiment_DL(Exp_Basic):
                 model_optim.zero_grad()
                 
                 pred, pred_scale, mid, mid_scale, true, true_scale = \
-                    self._process_one_batch(self.train_data, batch_x, batch_y)
+                    self._process_one_batch(self.dataset_train.scaler, 
+                                            batch_x, 
+                                            batch_y)
                 
                 if self.args.model_name == 'SCINet':  
                     loss = criterion(pred, true) + criterion(mid, true)
@@ -204,7 +205,7 @@ class Experiment_DL(Exp_Basic):
             print("Epoch: {} cost time: {}".format(epoch + 1, time.time()-epoch_time))
             train_loss = np.average(train_loss)
             print('--------start to validate-----------')
-            valid_loss = self.valid(self.valid_data, self.valid_loader, criterion)
+            valid_loss = self.valid(self.dataset, self.val_loader, criterion)
 
             print("Epoch: {0}, Steps: {1} | Train Loss: {2:.7f} valid Loss: {3:.7f}".format(
                 epoch + 1, train_steps, train_loss, valid_loss))
@@ -221,7 +222,7 @@ class Experiment_DL(Exp_Basic):
         
         if self.args.evaluate:
             print('--------start to test-----------')
-            test_loss = self.valid(self.test_data, self.test_loader, criterion)
+            test_loss = self.valid(self.dataset, self.test_loader, criterion)
             print("Test Loss: {:.7f}".format(test_loss))
 
         save_model(epoch, lr, self.model, path, model_name=self.args.data, 
@@ -244,7 +245,9 @@ class Experiment_DL(Exp_Basic):
 
         for i, (batch_x, batch_y) in enumerate(valid_loader):
             pred, pred_scale, mid, mid_scale, true, true_scale = \
-                self._process_one_batch(valid_data, batch_x, batch_y)
+                self._process_one_batch(self.dataset_val.scaler, 
+                                        batch_x, 
+                                        batch_y)
 
             if self.args.model_name == 'SCINet':
                 loss = criterion(pred.detach().cpu(), 
@@ -311,7 +314,9 @@ class Experiment_DL(Exp_Basic):
 
         for i, (batch_x,batch_y) in enumerate(self.test_loader):
             pred, pred_scale, mid, mid_scale, true, true_scale = \
-                self._process_one_batch(self.test_data, batch_x, batch_y)
+                self._process_one_batch(self.dataset_test.scaler, 
+                                        batch_x, 
+                                        batch_y)
 
             preds.append(pred.detach().cpu().numpy())
             trues.append(true.detach().cpu().numpy())
@@ -338,7 +343,7 @@ class Experiment_DL(Exp_Basic):
         
 
     def _process_one_batch(self, 
-                           dataset_object,
+                           scaler,
                            batch_x, 
                            batch_y
                           ) -> tuple:
@@ -361,9 +366,9 @@ class Experiment_DL(Exp_Basic):
             # mid = mid[..., :-5]
             # batch_y = batch_y[..., :-5]
 
-            outputs_scaled = dataset_object.inverse_transform(outputs)
-            mid_scaled = dataset_object.inverse_transform(mid)
-            batch_y_scaled = dataset_object.inverse_transform(batch_y)
+            outputs_scaled = scaler.inverse_transform(outputs)
+            mid_scaled = scaler.inverse_transform(mid)
+            batch_y_scaled = scaler.inverse_transform(batch_y)
 
             return outputs[:,:,-1], outputs_scaled[:,:,-1], mid[:,:,-1], \
                    mid_scaled[:,:,-1], batch_y[:,:,-1], batch_y_scaled[:,:,-1]
@@ -373,8 +378,8 @@ class Experiment_DL(Exp_Basic):
             outputs = self.model(batch_x)
             batch_y = batch_y[..., 10]
 
-            outputs_scaled = dataset_object.inverse_transform(outputs, is_dnn=True)
-            batch_y_scaled = dataset_object.inverse_transform(batch_y, is_dnn=True)
+            outputs_scaled = scaler.inverse_transform(outputs, is_dnn=True)
+            batch_y_scaled = scaler.inverse_transform(batch_y, is_dnn=True)
 
             return outputs, outputs_scaled, 0, 0, batch_y, batch_y_scaled
         else:

@@ -22,11 +22,11 @@ lr = 0.001
 test_mode = False #FIXME: Test mode면 training 진행 안됨
 
 is_new_test = False
-gpu_idx = '1'  #FIXME
+gpu_idx = '1'  #FIXME:
 itv = 5  # timepoint 간격이 얼마인지에 따라서 인덱싱 달리
 
 # TODO: ROI 리스트를 config로 넘겨서 onehot vector (output길이 자르는거까지) 길이 정보 제공
-input_dim = 11
+input_dim = 10  # FIXME: 11개가 full인데, scinet이 짝수로만 받아서 1개 뺌.
 input_len = 32
 pred_len = 16
 # ===================================================
@@ -164,3 +164,4 @@ for port in port_list:
         #   f'acc:{acc}, f1:{f1},\n'\
           f'acc_1h:{acc_1h}, f1_1h:{f1_1h}')
     print('*'*41)
+    
