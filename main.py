@@ -1,5 +1,7 @@
+import os
 import argparse
 import torch
+import itertools
 
 from data_process import NIA_data_loader_csvOnly_YearSplit
 from experiments.experiment_SARIMAX import Experiment_SARIMAX
@@ -12,14 +14,15 @@ import pandas as pd
 
 def parse_args(model: str,
                do_train: bool,
-               gpu_idx,
-               input_len,
-               pred_len,
-               input_dim,
-               n_workers,
-               epochs,
-               bs,
-               patience,
+               gpu_idx: int,
+               idx: int, 
+               input_len: int,
+               pred_len: int,
+               input_dim: int,
+               n_workers: int,
+               epochs: int,
+               bs: int,
+               patience: int,
                lr: float
                ) -> None:
     study = 'NIA'
@@ -97,7 +100,7 @@ def parse_args(model: str,
                         help='device ids of multile gpus')
 
     # -------  input/output length and 'number of feature' settings ------------
-    parser.add_argument('--in_dim',
+    parser.add_argument('--input_dim',
                         type=int,
                         default=input_dim,
                         help='number of input features')
@@ -226,24 +229,26 @@ def parse_args(model: str,
     return args
 
 
-def call_experiments_and_record(model: str,
-                                do_train: bool,
-                                gpu_idx: int,
-                                input_len: int,
-                                pred_len: int,
-                                input_dim: int,
-                                n_workers: int,
-                                epochs: int,
-                                bs: int,
-                                patience: int,
-                                lr: float
-                                ) -> None:
-    """ rip current prediction of 1h, 3h, 6h
-    using classification fashion and regression fashion models
+def call_experiments_record_performances(model: str,
+                                         do_train: bool,
+                                         gpu_idx: int,
+                                         itv: int,
+                                         input_len: int,
+                                         pred_len: int,
+                                         input_dim: int,
+                                         n_workers: int,
+                                         epochs: int,
+                                         bs: int,
+                                         patience: int,
+                                         lr: float
+                                         ) -> None:
+    """ do rip current prediction of 1h, 3h, 6h
+        using classification fashion and regression fashion models
     args:
         model: model name
         do_train: do train or load trained model for testing
         gpu_idx: gpu index for trainig, testing
+        itv: how many time point is in 1-hour? (default: 12)
         input_len: input sequence length
         pred_len: prediction sequence length
         input_dim: number of input feature
@@ -252,11 +257,11 @@ def call_experiments_and_record(model: str,
         bs: batch size
         patience: training patience
         lr: learning rate
-    return:
+    return: pd.dataframe recording experiment results
     """
 
     args = parse_args(
-        model, do_train, gpu_idx, input_len,
+        model, do_train, gpu_idx, itv, input_len,
         pred_len, input_dim, n_workers, epochs,
         bs, patience, lr
     )
@@ -296,44 +301,48 @@ def call_experiments_and_record(model: str,
     # 1. Traditional (SARIMAX, SVM)
     # 2. Machine Learning (RF, XGB)
     # 3. Deep Learning (MLP famaily, RNN family, 1DCNN family)
-    df = pd.DataFrame(columns=['model', 'pred_style', 'pred_length',
-                               'input_length', 'metric_style', 'metrics']
-                      )
+    if os.path.exists('Results.csv'):
+        df = pd.read_csv('Results.csv')
+    else:
+        df = pd.DataFrame(columns=['study_name', 'acc', 'f1', 'TP', 'FP', 'FN',
+                                   'TN', 'mae', 'mse', 'rmse', 'mape', 'mspe',
+                                   'corr']
+                          )
 
     if args.model_name == 'SARIMAX':
         DatasetClass = NIA_data_loader_csvOnly_YearSplit.Dataset_NIA
 
-        data_set = DatasetClass(
-            root_path=args.root_path,
-            NIA_work=args.NIA_work,
-            data=args.data,
-            port=args.port,
-            data_path=args.data_path,
-            size=[args.input_len, args.pred_len],
-            args=args
+        data_set_test = DatasetClass(
+            args=args,
+            flag='test',
+            is_2d=False
         )
 
-        assert pred_len == 36, \
-            'pred length of SARIMAX should be 36'
-
+        assert args.pred_len == itv * 6, 'pred length of SARIMAX should be 72'
         # SARIMAX는 training과정이 없으며, 언제나 testset을 활용함
         y_test_label, pred_test = Experiment_SARIMAX(
-            data_set,
-            pred_style=pred_len,
+            data_set_test,
             pred_len=pred_len,
-            n_worker=201
+            n_worker=20
         )
 
         # 원하는 시간 뽑아서 성능 계산
-        metrics2_1 = metric_classifier(y_test_label[:, 5], pred_test[:, 5])
-        metrics2_3 = metric_classifier(y_test_label[:, 17], pred_test[:, 17])
-        metrics2_6 = metric_classifier(y_test_label[:, 35], pred_test[:, 35])
+        for i in [1, 3, 6]:
+            metrics = metric_classifier(y_test_label[:, itv * i - 1],
+                                        pred_test[:, itv * i - 1]
+                                        )
+            study_name = f'{args.model_name}_predH{i}_inputLen{args.pred_len}_clasf'
+            df[i] = (study_name, metrics)
 
         # 전체 시간의 성능 계산
-        metrics3 = metric_all(y_test_label3, pred_test3)
+        metrics_allRange = metric_all(y_test_label, pred_test)
+        study_name = f'{args.model_name}_predH0~6_inputLen{args.pred_len}_regrs'
+        df[i] = (study_name, metrics_allRange)
+        df.to_csv('Results.csv')
 
-        # TODO: save as dataframe each metrics
-        # option 바꾸는 최적화된 방법 고안... configure을 main이 받는지 확인
+    elif args.model_name in ['SVM']:
+        pass
+        # TODO: write code !!!!!
 
     elif args.model_name in ['RF', 'XGB']:
         """
@@ -357,11 +366,9 @@ def call_experiments_and_record(model: str,
 
         # calc metrics
         metrics1 = metric_classifier(y_test_label1, pred_test1)
-
         metrics2_1 = metric_classifier(y_test_label2[:, 0], pred_test2[:, 0])
         metrics2_2 = metric_classifier(y_test_label2[:, 1], pred_test2[:, 1])
         metrics2_3 = metric_classifier(y_test_label2[:, 2], pred_test2[:, 2])
-
         metrics3 = metric_all(y_test_label3, pred_test3)
 
     else:  # DL models
@@ -386,15 +393,10 @@ def call_experiments_and_record(model: str,
 
         # calc metrics
         metrics1 = metric_classifier(y_test_label1, pred_test1)
-
         metrics2_1 = metric_classifier(y_test_label2[:, 0], pred_test2[:, 0])
         metrics2_2 = metric_classifier(y_test_label2[:, 1], pred_test2[:, 1])
         metrics2_3 = metric_classifier(y_test_label2[:, 2], pred_test2[:, 2])
-
         metrics3 = metric_all(y_test_label3, pred_test3)
-
-    # 최종 save table 형식, 파일이 뭐가 되야지 연구하기 편할까?
-    df = df.append()
 
 
 if __name__ == '__main__':
@@ -402,34 +404,39 @@ if __name__ == '__main__':
     # configs usually changed
 
     model = 'SARIMAX'  # FIXME:
-    # SARIMAX
-    # RF
-    # XGB
-    # MLPvanilla
-    # SimpleLinear
-    # LightTS
-    # Simple1DCNN
-    # SCINET
-    # LSTM
-    # Transformer
-    # Informer
+    # SARIMAX, SVM, RF, XGB, MLPvanilla, SimpleLinear, LightTS,
+    # Simple1DCNN, SCINET, LSTM, Transformer, Informer
     do_train = True  # FIXME:
     gpu_idx = '1'  # FIXME:
 
-    # model setting
-    input_len = 30  # FIXME:
-    pred_len = 36  # FIXME:
+    # data setting. !! 5분 간격이므로 1시간에 12개 존재함
+    itv = 12
 
+
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!
+    #TODO: input sequence길이 다른 시계열 연구에서는 어떻게 하는지 보고
+    # 비슷하게 세팅해서 실험하기.
+
+
+
+
+
+    input_len = [itv * i for i in [1, 3, 6]]  # FIXME:
+    pred_len = [itv * 6]  # FIXME:
     input_dim = 11  # FIXME: n_feature. site정보인 onehot vector는 넣지 않기로 함
 
     # trainig setting
-    n_workers = 10
     epochs = 100  # FIXME:
     patience = 10  # FIXME:
-    bs = 32
-    lr = 0.001
+    batchSize = 32
+    learningRate = 0.001
+    n_workers = 10
     # ===================================================
 
-    call_experiments_and_record(model, do_train, gpu_idx, input_len,
-                                pred_len, input_dim, n_workers, epochs,
-                                bs, patience, lr)
+    for input_len_tmp, pred_len_tmp in list(itertools.product(input_len, pred_len)):
+        # print(input_len_tmp, pred_len_tmp)
+        call_experiments_record_performances(model, do_train, gpu_idx,
+                                             itv, input_len_tmp, pred_len_tmp,
+                                             input_dim, n_workers, epochs,
+                                             batchSize, patience, learningRate
+                                             )

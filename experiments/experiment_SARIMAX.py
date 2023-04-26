@@ -9,11 +9,12 @@ warnings.simplefilter('ignore', ConvergenceWarning)
 
 from tqdm.contrib.concurrent import process_map
 from functools import partial
-from multiprocessing import cpu_count
 
 
-def SARIMAX_multiprocess(i: int, pred_len: int=None, 
-                         X_test: np.ndarray=None, y_test: np.ndarray=None
+def SARIMAX_multiprocess(i: int, 
+                         pred_len: int=None, 
+                         X_test: np.ndarray=None, 
+                         y_test: np.ndarray=None,
                         ) -> np.ndarray:
     """tuning by changing model hyper parameter"""
 
@@ -73,8 +74,8 @@ def Experiment_SARIMAX(dataset: object, pred_len: int=None, n_worker:int=20
 
     #FIXME: sample 숫자 일부러 줄인거 없애기
     #FIXME: sample 숫자 일부러 줄인거 없애기
-    X_test = dataset.X_test[:30, ...]  # N x 32 x 16
-    y_test = dataset.y_test[:30, ...]  # N x 16 x 16
+    X_test = dataset.X[:30, ...]  # N x 32 x 16
+    y_test = dataset.y[:30, ...]  # N x 16 x 16
     y_test_label = y_test[:, :, 10]
     # print(X_test.shape,y_test.shape)
 
