@@ -1,6 +1,6 @@
 import argparse
 import torch
-from typing import List, Set, Union
+
 from data_process import NIA_data_loader_csvOnly_YearSplit
 from experiments.experiment_SARIMAX import Experiment_SARIMAX
 from experiments.experiment_ML import Experiment_ML
@@ -10,18 +10,234 @@ from utils.tools import print_performance
 import pandas as pd
 
 
-def main(model: str,
-         do_train: bool,
-         gpu_idx: int,
-         input_len: int,
-         pred_len: int,
-         input_dim: int,
-         n_workers: int,
-         epochs: int,
-         bs: int,
-         patience: int,
-         lr: float
-         ) -> None:
+def parse_args(model: str,
+               do_train: bool,
+               gpu_idx,
+               input_len,
+               pred_len,
+               input_dim,
+               n_workers,
+               epochs,
+               bs,
+               patience,
+               lr: float
+               ) -> None:
+    study = 'NIA'
+    NIA_work = 'ripcurrent_100p'  # data 전처리 meta file 저장이름 변경용
+    root_path = f'./datasets/{study}/'
+    year = 'allYear'  # data read할 csv파일
+    port = ['AllPorts']
+    fname = f'obs_qc'
+
+    parser = argparse.ArgumentParser(description=f'{model} on {study} dataset')
+    parser.add_argument('--model',
+                        type=str,
+                        required=False,
+                        default=f'{model}_{study}_{port}',
+                        help='model of the experiment')
+
+    # -------  dataset settings --------------
+    parser.add_argument('--NIA_work',
+                        type=str,
+                        required=False,
+                        default=NIA_work,
+                        help='work name of NIA')
+    parser.add_argument('--data',
+                        type=str,
+                        required=False,
+                        default=study,
+                        help='name of dataset')
+    parser.add_argument('--year',
+                        type=str,
+                        required=False,
+                        default=year,
+                        help='Dataset year')
+    parser.add_argument('--port',
+                        type=str,
+                        required=False,
+                        default=port,
+                        help='name of port')
+    parser.add_argument('--root_path',
+                        type=str,
+                        default=root_path,
+                        help='root path of the data file')
+    parser.add_argument('--data_path',
+                        type=str,
+                        default=fname,
+                        help='location of the data file')
+    parser.add_argument('--checkpoints',
+                        type=str,
+                        default=f'exp/{study}_checkpoints/',
+                        help='location of model checkpoints')
+    parser.add_argument('--inverse',
+                        type=bool,
+                        default=False,
+                        help='denorm the output data')
+    parser.add_argument('--embed',
+                        type=str,
+                        default='timeF',
+                        help='time features encoding, options:[timeF, fixed, learned]')
+
+    # -------  device settings --------------
+    parser.add_argument('--use_gpu',
+                        type=bool,
+                        default=True,
+                        help='use gpu')
+    parser.add_argument('--gpu',
+                        type=int,
+                        default=1,
+                        help='gpu')
+    parser.add_argument('--use_multi_gpu',
+                        action='store_true',
+                        help='use multiple gpus',
+                        default=False)
+    parser.add_argument('--devices',
+                        type=str,
+                        default=gpu_idx,
+                        help='device ids of multile gpus')
+
+    # -------  input/output length and 'number of feature' settings ------------
+    parser.add_argument('--in_dim',
+                        type=int,
+                        default=input_dim,
+                        help='number of input features')
+    parser.add_argument('--input_len',
+                        type=int,
+                        default=input_len,
+                        help='input seq length of encoder, look back window')
+    parser.add_argument('--pred_len',
+                        type=int,
+                        default=pred_len,
+                        help='prediction sequence length, horizon')
+    parser.add_argument('--concat_len',
+                        type=int,
+                        default=0)
+    parser.add_argument('--single_step',
+                        type=int,
+                        default=0)
+    parser.add_argument('--single_step_output_One',
+                        type=int,
+                        default=0)
+    parser.add_argument('--lastWeight',
+                        type=float,
+                        default=1.0)
+
+    # -------  training settings --------------
+    parser.add_argument('--cols',
+                        type=str,
+                        nargs='+',
+                        help='file list')
+    parser.add_argument('--num_workers',
+                        type=int,
+                        default=n_workers,
+                        help='data loader num workers')
+    parser.add_argument('--train_epochs',
+                        type=int,
+                        default=epochs,
+                        help='train epochs')
+    parser.add_argument('--batch_size',
+                        type=int,
+                        default=bs,
+                        help='batch size of train input data')
+    parser.add_argument('--patience',
+                        type=int,
+                        default=patience,
+                        help='early stopping patience')
+    parser.add_argument('--lr',
+                        type=float,
+                        default=lr,
+                        help='optimizer learning rate')
+    parser.add_argument('--loss',
+                        type=str,
+                        default='mae',
+                        help='loss function')
+    parser.add_argument('--lradj',
+                        type=int,
+                        default=1,
+                        help='adjust learning rate')
+    parser.add_argument('--use_amp',
+                        action='store_true',
+                        help='use automatic mixed precision training',
+                        default=False)
+    parser.add_argument('--save',
+                        type=bool,
+                        default=False,
+                        help='save the output results')
+    parser.add_argument('--model_name',
+                        type=str,
+                        default=f'{model}')
+    parser.add_argument('--resume',
+                        type=bool,
+                        default=False)
+    # only when you finished trainig
+    parser.add_argument('--do_train',
+                        type=bool,
+                        default=do_train)
+
+    # -------  model settings --------------
+    parser.add_argument('--hidden-size',
+                        default=1,
+                        type=float,
+                        help='hidden channel of module')
+    parser.add_argument('--INN',
+                        default=1,
+                        type=int,
+                        help='use INN or basic strategy')
+    parser.add_argument('--kernel',
+                        default=5,
+                        type=int,
+                        help='kernel size, 3, 5, 7')
+    parser.add_argument('--dilation',
+                        default=1,
+                        type=int,
+                        help='dilation')
+    parser.add_argument('--window_size',
+                        default=3,
+                        type=int,
+                        help='input size')
+    parser.add_argument('--dropout',
+                        type=float,
+                        default=0.5,
+                        help='dropout')
+    parser.add_argument('--positionalEcoding',
+                        type=bool,
+                        default=False)
+    parser.add_argument('--groups',
+                        type=int,
+                        default=2)
+    parser.add_argument('--levels',
+                        type=int,
+                        default=2)
+    parser.add_argument('--stacks',
+                        type=int,
+                        default=2,
+                        help='1 stack or 2 stacks')
+    parser.add_argument('--num_decoder_layer',
+                        type=int,
+                        default=1)
+    parser.add_argument('--RIN',
+                        type=bool,
+                        default=False)
+    parser.add_argument('--decompose',
+                        type=bool,
+                        default=True)
+
+    args = parser.parse_args()
+    return args
+
+
+def call_experiments_and_record(model: str,
+                                do_train: bool,
+                                gpu_idx: int,
+                                input_len: int,
+                                pred_len: int,
+                                input_dim: int,
+                                n_workers: int,
+                                epochs: int,
+                                bs: int,
+                                patience: int,
+                                lr: float
+                                ) -> None:
     """ rip current prediction of 1h, 3h, 6h
     using classification fashion and regression fashion models
     args:
@@ -38,109 +254,17 @@ def main(model: str,
         lr: learning rate
     return:
     """
-    study = 'NIA'
-    NIA_work = 'ripcurrent_100p'  # data 전처리 meta file 저장이름 변경용
-    root_path = f'./datasets/{study}/'
-    year = 'allYear'  # data read할 csv파일
-    port = ['AllPorts']
-    fname = f'obs_qc'
+
+    args = parse_args(
+        model, do_train, gpu_idx, input_len,
+        pred_len, input_dim, n_workers, epochs,
+        bs, patience, lr
+    )
 
     print('\n\n')
     print('='*80)
-    print('|', ' '*24, f' ***[ {port} ]*** Start !', ' '*23, '|')
+    print('|', ' '*24, f' ***[ {args.port} ]*** Start !', ' '*23, '|')
     print('='*80)
-
-    parser = argparse.ArgumentParser(description=f'{model} on {study} dataset')
-    parser.add_argument('--model', type=str, required=False,
-                        default=f'{model}_{study}_{port}', help='model of the experiment')
-    # -------  dataset settings --------------
-    parser.add_argument('--NIA_work', type=str, required=False,
-                        default=NIA_work, help='work name of NIA')
-    parser.add_argument('--data', type=str, required=False,
-                        default=study, help='name of dataset')
-    parser.add_argument('--year', type=str, required=False,
-                        default=year, help='Dataset year')
-    parser.add_argument('--port', type=str, required=False,
-                        default=port, help='name of port')
-    parser.add_argument('--root_path', type=str,
-                        default=root_path, help='root path of the data file')
-    parser.add_argument('--data_path', type=str, default=fname,
-                        help='location of the data file')
-    parser.add_argument('--checkpoints', type=str,
-                        default=f'exp/{study}_checkpoints/', help='location of model checkpoints')
-    parser.add_argument('--inverse', type=bool, default=False,
-                        help='denorm the output data')
-    parser.add_argument('--embed', type=str, default='timeF',
-                        help='time features encoding, options:[timeF, fixed, learned]')
-
-    # -------  device settings --------------
-    parser.add_argument('--use_gpu', type=bool, default=True, help='use gpu')
-    parser.add_argument('--gpu', type=int, default=1, help='gpu')
-    parser.add_argument('--use_multi_gpu', action='store_true',
-                        help='use multiple gpus', default=False)
-    parser.add_argument('--devices', type=str, default=gpu_idx,
-                        help='device ids of multile gpus')
-
-    # -------  input/output length and 'number of feature' settings --------------
-    parser.add_argument('--in_dim', type=int, default=input_dim,
-                        help='number of input features')
-    parser.add_argument('--input_len', type=int, default=input_len,
-                        help='input sequence length of model encoder, look back window')
-    # parser.add_argument('--label_len', type=int, default=48, help='start token length of Informer decoder')  # input, label곂치는걸 원치 않으므로 안씀
-    parser.add_argument('--pred_len', type=int, default=pred_len,
-                        help='prediction sequence length, horizon')
-    parser.add_argument('--concat_len', type=int, default=0)
-    # parser.add_argument('--scale', type=bool, default=True)
-    parser.add_argument('--single_step', type=int, default=0)
-    parser.add_argument('--single_step_output_One', type=int, default=0)
-    parser.add_argument('--lastWeight', type=float, default=1.0)
-
-    # -------  training settings --------------
-    parser.add_argument('--cols', type=str, nargs='+', help='file list')
-    parser.add_argument('--num_workers', type=int,
-                        default=n_workers, help='data loader num workers')
-    parser.add_argument('--train_epochs', type=int,
-                        default=epochs, help='train epochs')
-    parser.add_argument('--batch_size', type=int, default=bs,
-                        help='batch size of train input data')
-    parser.add_argument('--patience', type=int,
-                        default=patience, help='early stopping patience')
-    parser.add_argument('--lr', type=float, default=lr,
-                        help='optimizer learning rate')
-    parser.add_argument('--loss', type=str, default='mae',
-                        help='loss function')
-    parser.add_argument('--lradj', type=int, default=1,
-                        help='adjust learning rate')
-    parser.add_argument('--use_amp', action='store_true',
-                        help='use automatic mixed precision training', default=False)
-    parser.add_argument('--save', type=bool, default=False,
-                        help='save the output results')
-    parser.add_argument('--model_name', type=str, default=f'{model}')
-    parser.add_argument('--resume', type=bool, default=False)
-    # only when you finished trainig
-    parser.add_argument('--do_train', type=bool, default=do_train)
-
-    # -------  model settings --------------
-    parser.add_argument('--hidden-size', default=1,
-                        type=float, help='hidden channel of module')
-    parser.add_argument('--INN', default=1, type=int,
-                        help='use INN or basic strategy')
-    parser.add_argument('--kernel', default=5, type=int,
-                        help='kernel size, 3, 5, 7')
-    parser.add_argument('--dilation', default=1, type=int, help='dilation')
-    parser.add_argument('--window_size', default=3,
-                        type=int, help='input size')
-    parser.add_argument('--dropout', type=float, default=0.5, help='dropout')
-    parser.add_argument('--positionalEcoding', type=bool, default=False)
-    parser.add_argument('--groups', type=int, default=2)
-    parser.add_argument('--levels', type=int, default=2)
-    parser.add_argument('--stacks', type=int, default=2,
-                        help='1 stack or 2 stacks')
-    parser.add_argument('--num_decoder_layer', type=int, default=1)
-    parser.add_argument('--RIN', type=bool, default=False)
-    parser.add_argument('--decompose', type=bool, default=True)
-
-    args = parser.parse_args()
 
     args.use_gpu = True if torch.cuda.is_available() and args.use_gpu else False
 
@@ -151,8 +275,8 @@ def main(model: str,
         args.gpu = args.device_ids[0]
         torch.cuda.set_device(args.gpu)
     elif args.use_gpu and not args.use_multi_gpu:
-        pass
-        # model= nn.DataParallel(model,device_ids = [1, 3])
+        model = torch.nn.DataParallel(model, device_ids=[1, 2, 3])
+
     print('Args in experiment:')
     print(args, '\n\n')
 
@@ -172,6 +296,10 @@ def main(model: str,
     # 1. Traditional (SARIMAX, SVM)
     # 2. Machine Learning (RF, XGB)
     # 3. Deep Learning (MLP famaily, RNN family, 1DCNN family)
+    df = pd.DataFrame(columns=['model', 'pred_style', 'pred_length',
+                               'input_length', 'metric_style', 'metrics']
+                      )
+
     if args.model_name == 'SARIMAX':
         DatasetClass = NIA_data_loader_csvOnly_YearSplit.Dataset_NIA
 
@@ -203,6 +331,9 @@ def main(model: str,
 
         # 전체 시간의 성능 계산
         metrics3 = metric_all(y_test_label3, pred_test3)
+
+        # TODO: save as dataframe each metrics
+        # option 바꾸는 최적화된 방법 고안... configure을 main이 받는지 확인
 
     elif args.model_name in ['RF', 'XGB']:
         """
@@ -262,10 +393,8 @@ def main(model: str,
 
         metrics3 = metric_all(y_test_label3, pred_test3)
 
-    # FIXME: 최종 save table 형식, 파일이 뭐가 되야지 연구하기 편할까?
-    """
-    |----|
-    """
+    # 최종 save table 형식, 파일이 뭐가 되야지 연구하기 편할까?
+    df = df.append()
 
 
 if __name__ == '__main__':
@@ -284,7 +413,6 @@ if __name__ == '__main__':
     # LSTM
     # Transformer
     # Informer
-
     do_train = True  # FIXME:
     gpu_idx = '1'  # FIXME:
 
@@ -302,6 +430,6 @@ if __name__ == '__main__':
     lr = 0.001
     # ===================================================
 
-    main(model, do_train, gpu_idx, input_len,
-         pred_len, input_dim, n_workers, epochs, 
-         bs, patience, lr)
+    call_experiments_and_record(model, do_train, gpu_idx, input_len,
+                                pred_len, input_dim, n_workers, epochs,
+                                bs, patience, lr)
