@@ -100,17 +100,24 @@ class dotdict(dict):
 
 
 class StandardScaler():
-    def __init__(self):
+    def __init__(self, is_2d=False):
         self.mean = 0.
         self.std = 1.
+        self.is_2d = is_2d
 
     def fit(self, data: np.array):
-        self.mean = data.mean(0)
-        self.std = data.std(0)
+        if self.is_2d:
+            dummy = data.reshape(data.shape[0], -1)
+            assert dummy.ndim == 2, 'array should have 2d (B, T * C) channels'
+            self.mean = dummy.mean(axis=0)
+            self.std = dummy.std(axis=0)
+        else:
+            assert data.ndim == 3, 'array should have 3d (B, T, C) channels'
+            self.mean = data.mean(axis=(0, 1))
+            self.std = data.std(axis=(0, 1))
 
-        # TODO: shape check !
-        assert self.mean.shape 
-        assert self.std.shape
+        assert self.mean.ndim == 1
+        assert self.std.ndim == 1
 
     def transform(self, data: np.array):
         mean = torch.from_numpy(self.mean).type_as(data).to(data.device) \
@@ -119,8 +126,8 @@ class StandardScaler():
             if torch.is_tensor(data) else self.std
         return (data - mean) / std
 
-    def inverse_transform(self, data: np.array, is_dnn=False):
-        if is_dnn:
+    def inverse_transform(self, data: np.array):
+        if self.is_2d:
             mean = self.mean[10] if torch.is_tensor(data) else self.mean
             std = self.std[10] if torch.is_tensor(data) else self.std
         else:
@@ -128,10 +135,19 @@ class StandardScaler():
                 if torch.is_tensor(data) else self.mean
             std = torch.from_numpy(self.std).type_as(data).to(data.device) \
                 if torch.is_tensor(data) else self.std
+            
         return (data * std) + mean
-    
+
         data.shape  # test는 (16, T, 10)
         std.shape  # (32, 10)
         type(data)
         type(std)
         self.std.shape
+
+
+def print_performance(model_name: str, metrics: dict) -> None:
+    print('*'*41)
+    print(f'Final test metrics of {model_name}:')
+    for key in metrics:
+        print(f"{key}: {metrics[key]}")
+    print('*'*41)

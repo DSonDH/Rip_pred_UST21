@@ -1,3 +1,13 @@
+from typing import Any
+from utils.tools import (EarlyStopping, adjust_learning_rate, load_model,
+                         save_model)
+from models.SCINet_decompose import SCINet_decomp
+from models.DNN import DNN
+from metrics.NIA_metrics import metric_regressor, metric_classifier
+from experiments.exp_basic import Exp_Basic
+from data_process import NIA_data_loader_csvOnly_YearSplit
+from utils.tools import print_performance
+
 import os
 import time
 import warnings
@@ -9,15 +19,7 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
 warnings.filterwarnings('ignore')
-from data_process import NIA_data_loader_csvOnly_YearSplit
-from experiments.exp_basic import Exp_Basic
-from metrics.NIA_metrics import metric_regressor, metric_classifier
 
-from models.DNN import DNN
-from models.SCINet_decompose import SCINet_decomp
-from utils.tools import (EarlyStopping, adjust_learning_rate, load_model,
-                         save_model)
-from typing import Any
 
 class Experiment_DL(Exp_Basic):
     """ Overall experiment pipelines are implemented in OOP style
@@ -38,44 +40,51 @@ class Experiment_DL(Exp_Basic):
         : get ground truth, prediction result of one batch
         both with scaled and without scaled
     """
+
     def __init__(self, args):
         super(Experiment_DL, self).__init__(args)
         self.print_per_iter = 100
-        
-        # train / validation / test dataset and dataloader setting
-        self.dataset_train = NIA_data_loader_csvOnly_YearSplit.Dataset_NIA(args=args,
-                                                                           flag='train'
-                        )
-        self.dataset_val = NIA_data_loader_csvOnly_YearSplit.Dataset_NIA(args=args,
-                                                                         flag='val'
-                      )
-        self.dataset_test = NIA_data_loader_csvOnly_YearSplit.Dataset_NIA(args=args,
-                                                                          flag='test'
-                       )
 
-        #TODO: for debug, check time range overlap or shape
-        #TODO: analyze statistics of train/val/test set
+        # train / validation / test dataset and dataloader setting
+        self.dataset_train = NIA_data_loader_csvOnly_YearSplit.Dataset_NIA(
+            args=args,
+            flag='train',
+            is_2d=False
+        )
+        self.dataset_val = NIA_data_loader_csvOnly_YearSplit.Dataset_NIA(
+            args=args,
+            flag='val',
+            is_2d=False
+        )
+        self.dataset_test = NIA_data_loader_csvOnly_YearSplit.Dataset_NIA(
+            args=args,
+            flag='test',
+            is_2d=False
+        )
+
+        # TODO: for debug, check time range overlap or shape
+        # TODO: analyze statistics of train/val/test set
         self.train_loader = DataLoader(
-                                self.dataset_train,
-                                batch_size=args.batch_size,
-                                shuffle=True,
-                                num_workers=args.num_workers,
-                                drop_last=True
-                            )
-        self.val_loader =   DataLoader(
-                                self.dataset_val,
-                                batch_size=args.batch_size,
-                                shuffle=True,
-                                num_workers=args.num_workers,
-                                drop_last=True
-                            )
-        self.test_loader =  DataLoader(
-                                self.dataset_test,
-                                batch_size=args.batch_size,
-                                shuffle=False,
-                                num_workers=args.num_workers,
-                                drop_last=False
-                            )
+            self.dataset_train,
+            batch_size=args.batch_size,
+            shuffle=True,
+            num_workers=args.num_workers,
+            drop_last=True
+        )
+        self.val_loader = DataLoader(
+            self.dataset_val,
+            batch_size=args.batch_size,
+            shuffle=True,
+            num_workers=args.num_workers,
+            drop_last=True
+        )
+        self.test_loader = DataLoader(
+            self.dataset_test,
+            batch_size=args.batch_size,
+            shuffle=False,
+            num_workers=args.num_workers,
+            drop_last=False
+        )
 
 
     def _build_model(self):
@@ -83,36 +92,36 @@ class Experiment_DL(Exp_Basic):
 
         if self.args.model_name == 'DNN':
             model = DNN(
-                        features=[
-                                  (self.args.input_len * self.args.input_dim, 512), 
-                                  (512, 1024), 
-                                  (1024, 2048), 
-                                  (2048, 1024),
-                                  (1024, 128),
-                                 ],
-                        pred_len=self.args.pred_len
-                    )
+                features=[
+                    (self.args.input_len * self.args.input_dim, 512),
+                    (512, 1024),
+                    (1024, 2048),
+                    (2048, 1024),
+                    (1024, 128),
+                ],
+                pred_len=self.args.pred_len
+            )
         elif self.args.model_name == 'CNN':
             ...
         elif self.args.model_name == 'RNN':
             ...
         elif self.args.model_name == 'SCINet':  # and self.args.decompose:
             model = SCINet_decomp(
-                        output_len=self.args.pred_len,
-                        input_len=self.args.input_len,
-                        input_dim=self.args.input_dim,
-                        hid_size=self.args.hidden_size,
-                        num_stacks=self.args.stacks,
-                        num_levels=self.args.levels,
-                        concat_len=self.args.concat_len,
-                        groups=self.args.groups,
-                        kernel=self.args.kernel,
-                        dropout=self.args.dropout,
-                        single_step_output_One=self.args.single_step_output_One,
-                        positionalE=self.args.positionalEcoding,
-                        modified=True,
-                        RIN=self.args.RIN
-                    )
+                output_len=self.args.pred_len,
+                input_len=self.args.input_len,
+                input_dim=self.args.input_dim,
+                hid_size=self.args.hidden_size,
+                num_stacks=self.args.stacks,
+                num_levels=self.args.levels,
+                concat_len=self.args.concat_len,
+                groups=self.args.groups,
+                kernel=self.args.kernel,
+                dropout=self.args.dropout,
+                single_step_output_One=self.args.single_step_output_One,
+                positionalE=self.args.positionalEcoding,
+                modified=True,
+                RIN=self.args.RIN
+            )
         elif self.args.model_name == 'Transformer':
             ...
 
@@ -122,7 +131,7 @@ class Experiment_DL(Exp_Basic):
     def _select_optimizer(self):
         model_optim = optim.Adam(self.model.parameters(), lr=self.args.lr)
         return model_optim
-    
+
 
     def _select_criterion(self, losstype):
         if losstype == "mse":
@@ -141,60 +150,62 @@ class Experiment_DL(Exp_Basic):
         print(path)
         if not os.path.exists(path):
             os.makedirs(path)
-        
-        writer = SummaryWriter(f'event/run_{self.args.data}/{self.args.model_name}')
+
+        writer = SummaryWriter(
+            f'event/run_{self.args.data}/{self.args.model_name}')
 
         time_now = time.time()
-        
+
         train_steps = len(self.train_loader)
-        early_stopping = EarlyStopping(patience=self.args.patience, verbose=True)
-        
+        early_stopping = EarlyStopping(
+            patience=self.args.patience, verbose=True)
+
         model_optim = self._select_optimizer()
-        criterion =  self._select_criterion(self.args.loss)
+        criterion = self._select_criterion(self.args.loss)
 
         if self.args.use_amp:
             scaler = torch.cuda.amp.GradScaler()
 
         if self.args.resume:
             self.model, lr, epoch_start = load_model(
-                                              self.model, path, 
-                                              model_name=self.args.data, 
-                                              horizon=self.args.horizon
-                                          )
+                self.model, path,
+                model_name=self.args.data,
+                horizon=self.args.horizon
+            )
         else:
             epoch_start = 0
 
         for epoch in range(epoch_start, self.args.train_epochs):
             train_loss = []
-            
+
             self.model.train()
             epoch_time = time.time()
-            
+
             for i, (batch_x, batch_y) in enumerate(self.train_loader):
                 model_optim.zero_grad()
-                
+
                 pred, pred_scale, mid, mid_scale, true, true_scale = \
-                    self._process_one_batch(self.dataset_train.scaler, 
-                                            batch_x, 
+                    self._process_one_batch(self.dataset_train.scaler,
+                                            batch_x,
                                             batch_y)
-                
-                if self.args.model_name == 'SCINet':  
+
+                if self.args.model_name == 'SCINet':
                     loss = criterion(pred, true) + criterion(mid, true)
                 else:
                     loss = criterion(pred, true)
-                                     
+
                 train_loss.append(loss.item())
-                
+
                 if (i + 1) % self.print_per_iter == 0:
                     speed = (time.time() - time_now) / self.print_per_iter
                     print("\titers: {0}, epoch: {1} | loss: {2:.7f} | speed: {3:.4f}s/iter".format(
-                                    i + 1, epoch + 1, loss.item(), speed))
+                        i + 1, epoch + 1, loss.item(), speed))
                     # left_time = speed*((self.args.train_epochs - epoch) * train_steps - i)
                     # print('\tspeed: {:.4f}s/iter; left time: {:.4f}s'.format(speed, left_time))
                     time_now = time.time()
-                
+
                 if self.args.use_amp:
-                    print('use amp')    
+                    print('use amp')
                     scaler.scale(loss).backward()
                     scaler.step(model_optim)
                     scaler.update()
@@ -202,10 +213,12 @@ class Experiment_DL(Exp_Basic):
                     loss.backward()
                     model_optim.step()
 
-            print("Epoch: {} cost time: {}".format(epoch + 1, time.time()-epoch_time))
+            print("Epoch: {} cost time: {}".format(
+                epoch + 1, time.time()-epoch_time))
             train_loss = np.average(train_loss)
+            
             print('--------start to validate-----------')
-            valid_loss = self.valid(self.dataset, self.val_loader, criterion)
+            valid_loss = self.valid(self.val_loader, criterion)
 
             print("Epoch: {0}, Steps: {1} | Train Loss: {2:.7f} valid Loss: {3:.7f}".format(
                 epoch + 1, train_steps, train_loss, valid_loss))
@@ -219,21 +232,21 @@ class Experiment_DL(Exp_Basic):
                 break
 
             lr = adjust_learning_rate(model_optim, epoch + 1, self.args)
-        
+
         if self.args.evaluate:
             print('--------start to test-----------')
-            test_loss = self.valid(self.dataset, self.test_loader, criterion)
+            test_loss = self.valid(self.test_loader, criterion)
             print("Test Loss: {:.7f}".format(test_loss))
 
-        save_model(epoch, lr, self.model, path, model_name=self.args.data, 
-                                                horizon=self.args.pred_len)
+        save_model(epoch, lr, self.model, path, model_name=self.args.data,
+                   horizon=self.args.pred_len)
         best_model_path = path + '/' + 'checkpoint.pth'
         self.model.load_state_dict(torch.load(best_model_path))
 
         return self.model
 
 
-    def valid(self, valid_data, valid_loader, criterion):
+    def valid(self, valid_loader, criterion) -> float:
         self.model.eval()
         total_loss = []
         preds = []
@@ -245,16 +258,16 @@ class Experiment_DL(Exp_Basic):
 
         for i, (batch_x, batch_y) in enumerate(valid_loader):
             pred, pred_scale, mid, mid_scale, true, true_scale = \
-                self._process_one_batch(self.dataset_val.scaler, 
-                                        batch_x, 
+                self._process_one_batch(self.dataset_val.scaler,
+                                        batch_x,
                                         batch_y)
 
             if self.args.model_name == 'SCINet':
-                loss = criterion(pred.detach().cpu(), 
+                loss = criterion(pred.detach().cpu(),
                                  true.detach().cpu()) + \
-                                    criterion(mid.detach().cpu(), 
-                                              true.detach().cpu()
-                                )
+                    criterion(mid.detach().cpu(),
+                              true.detach().cpu()
+                              )
 
             else:
                 loss = criterion(pred.detach().cpu(), true.detach().cpu())
@@ -269,53 +282,54 @@ class Experiment_DL(Exp_Basic):
             else:
                 mids.append(0)
                 mid_scales.append(0)
-            
+
             total_loss.append(loss)
         total_loss = np.average(total_loss)
 
         true_scales = np.array(true_scales)
         pred_scales = np.array(pred_scales)
 
-        true_scales = true_scales.reshape(-1, 
-                                          true_scales.shape[-2], 
+        true_scales = true_scales.reshape(-1,
+                                          true_scales.shape[-2],
                                           true_scales.shape[-1]
-                                         )
-        pred_scales = pred_scales.reshape(-1, 
-                                          pred_scales.shape[-2], 
+                                          )
+        pred_scales = pred_scales.reshape(-1,
+                                          pred_scales.shape[-2],
                                           pred_scales.shape[-1]
-                                         )
+                                          )
 
         print('==== Final ====')
-        acc, f1 = metric_classifier(true_scales, pred_scales)
-        dummy = metric_regressor(true_scales, pred_scales)
+        dict_clasf = metric_classifier(true_scales, pred_scales)
+        dict_regrs = metric_regressor(true_scales, pred_scales)
 
-        print(f'Accuracy, F1: {acc :.3f}, {f1 :.3f} \n\n')
+        print_performance(self.args.model_name, dict_clasf)
+        print_performance(self.args.model_name, dict_regrs)
 
         return total_loss
-    
 
-    def test(self, setting, evaluate=False):
+
+    def test(self, setting, evaluate=False) -> dict:
         """test
 
         """
         self.model.eval()
-        
+
         preds = []
         trues = []
         mids = []
         pred_scales = []
         true_scales = []
         mid_scales = []
-        
+
         if evaluate:
             path = os.path.join(self.args.checkpoints, setting)
             best_model_path = path+'/'+'checkpoint.pth'
             self.model.load_state_dict(torch.load(best_model_path))
 
-        for i, (batch_x,batch_y) in enumerate(self.test_loader):
+        for i, (batch_x, batch_y) in enumerate(self.test_loader):
             pred, pred_scale, mid, mid_scale, true, true_scale = \
-                self._process_one_batch(self.dataset_test.scaler, 
-                                        batch_x, 
+                self._process_one_batch(self.dataset_test.scaler,
+                                        batch_x,
                                         batch_y)
 
             preds.append(pred.detach().cpu().numpy())
@@ -326,27 +340,30 @@ class Experiment_DL(Exp_Basic):
         pred_scales = np.array(pred_scales)
         true_scales = np.array(true_scales)
 
-        true_scales = true_scales.reshape(-1, 
-                                          true_scales.shape[-2], 
+        true_scales = true_scales.reshape(-1,
+                                          true_scales.shape[-2],
                                           true_scales.shape[-1]
-                                         )
-        pred_scales = pred_scales.reshape(-1, 
-                                          pred_scales.shape[-2], 
+                                          )
+        pred_scales = pred_scales.reshape(-1,
+                                          pred_scales.shape[-2],
                                           pred_scales.shape[-1]
-                                         )
-        
+                                          )
+
         print('==== Final ====')
-        acc, f1 = metric_classifier(true_scales, pred_scales)
-        dummy = metric_regressor(true_scales, pred_scales)
+        dict_clasf = metric_classifier(true_scales, pred_scales)
+        dict_regrs = metric_regressor(true_scales, pred_scales)
 
-        return acc, f1
-        
+        print_performance(self.args.model_name, dict_clasf)
+        print_performance(self.args.model_name, dict_regrs)
 
-    def _process_one_batch(self, 
+        return
+
+
+    def _process_one_batch(self,
                            scaler,
-                           batch_x, 
+                           batch_x,
                            batch_y
-                          ) -> tuple:
+                           ) -> tuple:
         """
         one batch process for train, val, test
         """
@@ -370,11 +387,13 @@ class Experiment_DL(Exp_Basic):
             mid_scaled = scaler.inverse_transform(mid)
             batch_y_scaled = scaler.inverse_transform(batch_y)
 
-            return outputs[:,:,-1], outputs_scaled[:,:,-1], mid[:,:,-1], \
-                   mid_scaled[:,:,-1], batch_y[:,:,-1], batch_y_scaled[:,:,-1]
-            
+            return outputs[:, :, -1], outputs_scaled[:, :, -1], mid[:, :, -1], \
+                mid_scaled[:, :, -1], batch_y[:,
+                                              :, -1], batch_y_scaled[:, :, -1]
+
         elif self.args.model_name == 'DNN':
-            batch_x = batch_x.reshape((-1, batch_x.shape[1] * batch_x.shape[2]))
+            batch_x = batch_x.reshape(
+                (-1, batch_x.shape[1] * batch_x.shape[2]))
             outputs = self.model(batch_x)
             batch_y = batch_y[..., 10]
 

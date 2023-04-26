@@ -5,6 +5,7 @@ from experiments.experiment_SARIMAX import Experiment_SARIMAX
 from experiments.experiment_ML import Experiment_ML
 
 from metrics.NIA_metrics import metric_classifier, metric_regressor, metric_all
+from utils.tools import print_performance
 
 """ rip current prediction of 1h, 3h, 6h
 using classification fashion and regression fashion models
@@ -244,9 +245,6 @@ for port in port_list:
     #FIXME: 최종 save table 형식, 파일이 뭐가 되야지 연구하기 편할까?
 
 
-def print_performance(metrics: dict) -> None:
-    print('*'*41)
-    print(f'Final test metrics of {args.model_name}:\n')
-    for key in metrics:
-        print(f"{key}: {metrics[key]}\n")
-    print('*'*41)
+
+if __name__ == "__main__":
+    ...

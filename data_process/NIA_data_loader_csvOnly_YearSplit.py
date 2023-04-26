@@ -10,13 +10,13 @@ from utils.tools import StandardScaler
 
 from tqdm.contrib.concurrent import process_map
 from functools import partial
-from multiprocessing import cpu_count
 
 warnings.filterwarnings('ignore')
 
 
 class Dataset_NIA(Dataset):
-    def __init__(self, args: dict = None, flag: str = None) -> None:
+    def __init__(self, args: dict=None, flag: str=None, is_2d: bool=False,
+                 ) -> None:
         assert flag != None, "Please specify 'train' or 'val' or 'test' flag"
         assert args.pred_len != None and args.input_len != None, \
             'Please specify input_len and pred_len'
@@ -37,6 +37,7 @@ class Dataset_NIA(Dataset):
         self.port = args.port
         self.args = args
         self.flag = flag
+        self.is_2d = is_2d
 
         self.__read_data__()
 
@@ -136,7 +137,8 @@ class Dataset_NIA(Dataset):
 
             fit scaler using merged train set
             save the scaler object as pickle
-            when loading saved file : the file is already normalized
+            when loading saved file : the file is NOT normalized
+            You should normalize first when loading saved instances!
         """
 
         site_names = ['DC', 'HD', 'JM', 'NS', 'SJ']
@@ -146,7 +148,7 @@ class Dataset_NIA(Dataset):
 
         if not os.path.exists(
             f'{self.root_path}/{self.NIA_work}_'
-                f'processed_X_train_{year}_YearSplit.pkl'):
+                f'processed_X_train_YearSplit.pkl'):
             print(f'no processed train file. start data preprocessing!! \n')
 
             csv_pth = f'{self.root_path}/obs_qc_100p'
@@ -179,37 +181,48 @@ class Dataset_NIA(Dataset):
             X_te = Xy_test[:, :self.input_len, :]
             y_te = Xy_test[:, self.input_len:, :]
 
-            self.scaler = StandardScaler()  # MinMaxScaler()
-            self.scaler.fit(X_tr)  # except onehot encodings
-            # self.scaler.fit(X_tr[..., :-5])  # except onehot encodings
+            self.scaler_2d = StandardScaler(is_2d=True)
+            self.scaler_3d = StandardScaler(is_2d=False)
+            self.scaler_2d.fit(X_tr)
+            self.scaler_3d.fit(X_tr)
+            
             joblib.dump(
-                self.scaler,
-                f'{self.root_path}/{self.NIA_work}_NIA_train_'
-                f'{self.port}_{year}_scaler_YearSplit.pkl'
+                self.scaler_2d,
+                f'{self.root_path}/{self.NIA_work}_NIA_train_scaler2D_YearSplit.pkl'
             )
-
-            # now save it.
-            joblib.dump(self.scaler.transform(X_tr),
-                        f'{self.root_path}/{self.NIA_work}_processed_X_train_{year}_YearSplit.pkl')
-            joblib.dump(y_tr,
-                        f'{self.root_path}/{self.NIA_work}_processed_y_train_{year}_YearSplit.pkl')
-            joblib.dump(self.scaler.transform(X_val),
-                        f'{self.root_path}/{self.NIA_work}_processed_X_val_{year}_YearSplit.pkl')
-            joblib.dump(y_val,
-                        f'{self.root_path}/{self.NIA_work}_processed_y_val_{year}_YearSplit.pkl')
-            joblib.dump(self.scaler.transform(X_te),
-                        f'{self.root_path}/{self.NIA_work}_processed_X_test_{year}_YearSplit.pkl')
-            joblib.dump(y_te,
-                        f'{self.root_path}/{self.NIA_work}_processed_y_test_{year}_YearSplit.pkl')
+            joblib.dump(
+                self.scaler_3d,
+                f'{self.root_path}/{self.NIA_work}_NIA_train_scaler3D_YearSplit.pkl'
+            )
+            
+            joblib.dump(X_tr, f'{self.root_path}/{self.NIA_work}_processed_X_train_YearSplit.pkl')
+            joblib.dump(y_tr, f'{self.root_path}/{self.NIA_work}_processed_y_train_YearSplit.pkl')
+            joblib.dump(X_val, f'{self.root_path}/{self.NIA_work}_processed_X_val_YearSplit.pkl')
+            joblib.dump(y_val, f'{self.root_path}/{self.NIA_work}_processed_y_val_YearSplit.pkl')
+            joblib.dump(X_te, f'{self.root_path}/{self.NIA_work}_processed_X_test_YearSplit.pkl')
+            joblib.dump(y_te, f'{self.root_path}/{self.NIA_work}_processed_y_test_YearSplit.pkl')
             # finished if block
 
-        # when saved pre-processed file exist
+        # when saved pre-processed file exist: just load files!
         self.X = joblib.load(
-            f'{self.root_path}/{self.NIA_work}_processed_X_{self.flag}_{year}_YearSplit.pkl')
+            f'{self.root_path}/{self.NIA_work}_processed_X_{self.flag}_YearSplit.pkl')
         self.y = joblib.load(
-            f'{self.root_path}/{self.NIA_work}_processed_y_{self.flag}_{year}_YearSplit.pkl')
-        self.scaler = joblib.load(  # train 기간에 대해 맞춰진 것
-            f'{self.root_path}/{self.NIA_work}_NIA_train_{self.port}_{year}_scaler_YearSplit.pkl')
+            f'{self.root_path}/{self.NIA_work}_processed_y_{self.flag}_YearSplit.pkl')
+
+        if self.is_2d:
+            self.scaler = joblib.load(  # train 기간에 대해 맞춰진 것
+                f'{self.root_path}/{self.NIA_work}_NIA_train_scaler2D_YearSplit.pkl') 
+            # (N, T, C) to (N, T * C)
+            self.X = self.X.reshape(self.X.shape[0], -1)
+            self.y = self.y.reshape(self.X.shape[0], -1)
+
+        else:
+            self.scaler = joblib.load(  # train 기간에 대해 맞춰진 것
+                f'{self.root_path}/{self.NIA_work}_NIA_train_scaler3D_YearSplit.pkl')
+        
+        # apply normalization
+        self.X = self.scaler.transform(self.X)
+        self.y = self.scaler.transform(self.y)
 
 
     def __getitem__(self, index):

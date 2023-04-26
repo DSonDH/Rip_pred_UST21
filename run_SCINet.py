@@ -14,9 +14,9 @@ nia_csv_base = True # False : json file 내 날짜로 instance 생성
 year = 'allYear'  # data read할 csv파일
 
 n_workers = 10
-epochs = 200
+epochs = 10
 bs = 32
-patience = 30
+patience = 3
 lr = 0.001
 
 test_mode = False #FIXME: Test mode면 training 진행 안됨
@@ -157,11 +157,4 @@ for port in port_list:
         exp.train(setting)
 
     print('Start Testing {}'.format(setting))
-    acc, f1, acc_1h, f1_1h = exp.test(setting)    
-
-    print('*'*41)
-    print(f'Final Performance :\n'\
-        #   f'acc:{acc}, f1:{f1},\n'\
-          f'acc_1h:{acc_1h}, f1_1h:{f1_1h}')
-    print('*'*41)
-    
+    exp.test(setting)
