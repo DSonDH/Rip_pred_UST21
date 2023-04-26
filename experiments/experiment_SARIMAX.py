@@ -14,7 +14,8 @@ from multiprocessing import cpu_count
 
 def SARIMAX_multiprocess(i: int, pred_len: int=None, 
                          X_test: np.ndarray=None, y_test: np.ndarray=None
-                         ) -> np.ndarray:
+                        ) -> np.ndarray:
+    """tuning by changing model hyper parameter"""
 
     y_train_tmp = X_test[i, :, 10]
     x_train_tmp = X_test[i, :, :10]
@@ -94,6 +95,7 @@ def Experiment_SARIMAX(dataset: object, pred_len: int=None, n_worker:int=20
     assert(X_test.shape[2] >= 11)
     assert(y_test.shape[2] >= 11)
 
+    # sample별 병렬로 결과 냄. tuning을 병렬화 하는게 아님.
     partial_wrapper = partial(SARIMAX_multiprocess, X_test=X_test, y_test=y_test, 
                                                     pred_len=pred_len)
     pred_test = process_map(partial_wrapper, range(len(X_test)),

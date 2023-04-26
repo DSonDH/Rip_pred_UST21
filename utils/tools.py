@@ -16,34 +16,35 @@ def save_model(epoch, lr, model, model_dir, model_name='pems08', horizon=12):
             'lr': lr,
             'model': model.state_dict(),
         }, file_name)
-    print('save model in ',file_name)
+    print('save model in ', file_name)
 
 
 def load_model(model, model_dir, model_name='pems08', horizon=12):
     if not model_dir:
         return
-    file_name = os.path.join(model_dir, model_name+str(horizon)+'.pt') 
+    file_name = os.path.join(model_dir, model_name+str(horizon)+'.pt')
 
     if not os.path.exists(file_name):
         return
     with open(file_name, 'rb') as f:
         checkpoint = torch.load(f, map_location=lambda storage, loc: storage)
-        print('This model was trained for {} epochs'.format(checkpoint['epoch']))
+        print('This model was trained for {} epochs'.format(
+            checkpoint['epoch']))
         model.load_state_dict(checkpoint['model'])
         epoch = checkpoint['epoch']
         lr = checkpoint['lr']
-        print('loaded the model...', file_name, 'now lr:', lr, 'now epoch:', epoch)
+        print('loaded the model...', file_name,
+              'now lr:', lr, 'now epoch:', epoch)
     return model, lr, epoch
 
 
 def adjust_learning_rate(optimizer, epoch, args):
-    if args.lradj==1:
+    if args.lradj == 1:
         lr_adjust = {epoch: args.lr * (0.95 ** (epoch // 1))}
 
-    elif args.lradj==2:
+    elif args.lradj == 2:
         lr_adjust = {
-            0: 0.0001, 5: 0.0005, 10:0.001, 20: 0.0001, 30: 0.00005, 40: 0.00001
-            , 70: 0.000001
+            0: 0.0001, 5: 0.0005, 10: 0.001, 20: 0.0001, 30: 0.00005, 40: 0.00001, 70: 0.000001
         }
 
     if epoch in lr_adjust.keys():
@@ -74,7 +75,8 @@ class EarlyStopping:
             self.save_checkpoint(val_loss, model, path)
         elif score < self.best_score + self.delta:
             self.counter += 1
-            print(f'EarlyStopping counter: {self.counter} out of {self.patience}')
+            print(
+                f'EarlyStopping counter: {self.counter} out of {self.patience}')
             if self.counter >= self.patience:
                 self.early_stop = True
         else:
@@ -84,7 +86,7 @@ class EarlyStopping:
 
     def save_checkpoint(self, val_loss, model, path):
         if self.verbose:
-            print(f'Validation loss decreased '\
+            print(f'Validation loss decreased '
                   f'({self.val_loss_min:.6f} --> {val_loss:.6f}).  Saving model ...')
         torch.save(model.state_dict(), path+'/'+'checkpoint.pth')
         self.val_loss_min = val_loss
@@ -101,10 +103,14 @@ class StandardScaler():
     def __init__(self):
         self.mean = 0.
         self.std = 1.
-    
+
     def fit(self, data: np.array):
         self.mean = data.mean(0)
         self.std = data.std(0)
+
+        # TODO: shape check !
+        assert self.mean.shape 
+        assert self.std.shape
 
     def transform(self, data: np.array):
         mean = torch.from_numpy(self.mean).type_as(data).to(data.device) \
@@ -123,3 +129,9 @@ class StandardScaler():
             std = torch.from_numpy(self.std).type_as(data).to(data.device) \
                 if torch.is_tensor(data) else self.std
         return (data * std) + mean
+    
+        data.shape  # test는 (16, T, 10)
+        std.shape  # (32, 10)
+        type(data)
+        type(std)
+        self.std.shape
