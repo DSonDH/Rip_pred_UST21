@@ -14,6 +14,25 @@ from experiments.exp_basic import Exp_Basic
 from typing import Any
 
 class Experiment_ML(Exp_Basic):
+    """ Overall experiment pipelines are implemented in OOP style
+    __init__()
+        : prepare data
+    _build_model()
+        : generate model objects
+    _select_optimizer()
+        : call optimization function
+    _select_criterion()
+        : call loss function
+    train()
+        : do train process
+    valid()
+    test()
+        FIXME: valid, test 중복되는거 같은데 중복 없애기
+        FIXME: HPO: grid search로
+    _process_one_batch()
+        : get ground truth, prediction result of one batch
+        both with scaled and without scaled
+    """
     def __init__(self, args):
         super(Experiment_ML, self).__init__(args)
         self.print_per_iter = 100;
@@ -29,9 +48,6 @@ class Experiment_ML(Exp_Basic):
                            size = [args.input_len, args.pred_len],
                            args = args
                        )
-
-        #FIXME: for debug, check time range overlap or shape
-        #FIXME: analyze statistics of train/val/test set
 
         self.train_loader = DataLoader(
                                 self.dataset.train_set,

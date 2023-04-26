@@ -7,53 +7,51 @@ from experiments.experiment_ML import Experiment_ML
 from metrics.NIA_metrics import metric_classifier, metric_regressor, metric_all
 from utils.tools import print_performance
 
-""" rip current prediction of 1h, 3h, 6h
-using classification fashion and regression fashion models
-"""
-# ===================================================
-# configs usually changed
+def main():
+    """ rip current prediction of 1h, 3h, 6h
+    using classification fashion and regression fashion models
+    """
+    # ===================================================
+    # configs usually changed
 
-model = 'SARIMAX'
-# SARIMAX
-# RF
-# XGB
-# MLPvanilla
-# SimpleLinear
-# LightTS
-# Simple1DCNN
-# SCINET
-# LSTM
-# Transformer
-# Informer
+    model = 'SARIMAX'
+    # SARIMAX
+    # RF
+    # XGB
+    # MLPvanilla
+    # SimpleLinear
+    # LightTS
+    # Simple1DCNN
+    # SCINET
+    # LSTM
+    # Transformer
+    # Informer
 
-do_train = True #FIXME:
-gpu_idx = '1' #FIXME:
+    do_train = True #FIXME:
+    gpu_idx = '1' #FIXME:
 
-# model setting
-input_len = 30 #FIXME:
-pred_len = 36 #FIXME:
-itv = 5  # timepoint 간격이 얼마인지에 따라서 인덱싱 달리
+    # model setting
+    input_len = 30 #FIXME:
+    pred_len = 36 #FIXME:
+    itv = 5  # timepoint 간격이 얼마인지에 따라서 인덱싱 달리
 
-# TODO: 11 + 5에서 onehot 효과 없음이 보여지면 11개 feature만 쓰도록.
-input_dim = 11 + 5  # n_feature + 5 one-hot
+    input_dim = 11 # n_feature. site정보인 onehot vector는 넣지 않기로 함
 
-# trainig setting
-n_workers = 10
-epochs = 3
-bs = 32
-patience = 30
-lr = 0.001
-# is_new_test = False
-# ===================================================
-study = 'NIA'
-NIA_work = 'ripcurrent_100p'  # data 전처리 meta file 저장이름 변경용
-root_path = f'./datasets/{study}/'
-year = 'allYear'  # data read할 csv파일
-port_list = ['AllPorts']
-fname = f'obs_qc'
+    # trainig setting
+    n_workers = 10
+    epochs = 3
+    bs = 32
+    patience = 30
+    lr = 0.001
+    # is_new_test = False
+    # ===================================================
+    study = 'NIA'
+    NIA_work = 'ripcurrent_100p'  # data 전처리 meta file 저장이름 변경용
+    root_path = f'./datasets/{study}/'
+    year = 'allYear'  # data read할 csv파일
+    port = ['AllPorts']
+    fname = f'obs_qc'
 
-
-for port in port_list:
     print('\n\n')
     print('='*80)
     print('|',' '*24, f' ***[ {port} ]*** Start !',' '*23,'|')
@@ -148,7 +146,6 @@ for port in port_list:
                     args.batch_size,args.hidden_size,args.stacks, 
                     args.levels,args.dropout,args.inverse)
 
-    
     #FIXME: 최종 save table 형식, 파일이 뭐가 되야지 연구하기 편할까?
     if args.model_name == 'SARIMAX':
         from data_process import NIA_data_loader_csvOnly_YearSplit
@@ -164,15 +161,15 @@ for port in port_list:
             args = args
         )
         
-        assert pred_len >= 35, \
-            'designated pred length is shorter than expected output length'
+        assert pred_len == 36, \
+            'pred length of SARIMAX should be 36'
 
         # SARIMAX는 training과정이 없으며, 언제나 testset을 활용함
         y_test_label, pred_test = Experiment_SARIMAX(
-                                      data_set, 
-                                      pred_style=pred_len,
-                                      pred_len=pred_len,
-                                      n_worker=201
+                                        data_set, 
+                                        pred_style=pred_len,
+                                        pred_len=pred_len,
+                                        n_worker=201
                                     )
 
         # 원하는 시간 뽑아서 성능 계산
@@ -182,6 +179,7 @@ for port in port_list:
 
         # 전체 시간의 성능 계산
         metrics3 = metric_all(y_test_label3, pred_test3)
+
 
     elif args.model_name in ['RF', 'XGB']:        
         """
@@ -245,6 +243,5 @@ for port in port_list:
     #FIXME: 최종 save table 형식, 파일이 뭐가 되야지 연구하기 편할까?
 
 
-
-if __name__ == "__main__":
-    ...
+if __name__ == '__main__':
+    main()

@@ -15,7 +15,7 @@ warnings.filterwarnings('ignore')
 
 
 class Dataset_NIA(Dataset):
-    def __init__(self, args: dict=None, flag: str=None, is_2d: bool=False,
+    def __init__(self, args: dict = None, flag: str = None, is_2d: bool = False,
                  ) -> None:
         assert flag != None, "Please specify 'train' or 'val' or 'test' flag"
         assert args.pred_len != None and args.input_len != None, \
@@ -62,8 +62,10 @@ class Dataset_NIA(Dataset):
     def get_instances(self, df: pd.DataFrame) -> Tuple[List, int]:
         instance_list = []
         nonan = 0
+        assert len(df) >= (self.input_len + self.pred_len), \
+            'not enough time to extract instance !'
 
-        for x_start in range(self.input_len, len(df)):
+        for x_start in range(0, len(df) - self.input_len - self.pred_len):
             y_end = x_start + self.input_len + self.pred_len
 
             # 일단 X, y합쳐서 뽑고, 나중에 분리
@@ -86,7 +88,7 @@ class Dataset_NIA(Dataset):
 
         df = self.load_df(csv_pth, site, angle_inci_beach[i], self.input_dim)
 
-        # FIXME: add onehot 효과 살펴보고, 효과 없으면 지우기
+        # add onehot 효과가 별로 없으므로, 삭제함.
         # onehot = np.zeros(n_sites)
         # onehot[i] = 1
         # df[['site_' + item for item in site_names]] = onehot
@@ -140,15 +142,13 @@ class Dataset_NIA(Dataset):
             when loading saved file : the file is NOT normalized
             You should normalize first when loading saved instances!
         """
-
         site_names = ['DC', 'HD', 'JM', 'NS', 'SJ']
-        # incidence angle of each beach
-        angle_inci_beach = [245, 178, 175, 47, 142]
-        year = self.args.year
+        angle_inci_beach = [245, 178, 175, 47, 142]  # incidence angle of each beach
 
         if not os.path.exists(
             f'{self.root_path}/{self.NIA_work}_'
-                f'processed_X_train_YearSplit.pkl'):
+                f'meta_X_train_{self.input_len}_{self.pred_len}.pkl'):
+
             print(f'no processed train file. start data preprocessing!! \n')
 
             csv_pth = f'{self.root_path}/obs_qc_100p'
@@ -185,42 +185,45 @@ class Dataset_NIA(Dataset):
             self.scaler_3d = StandardScaler(is_2d=False)
             self.scaler_2d.fit(X_tr)
             self.scaler_3d.fit(X_tr)
-            
+
             joblib.dump(
                 self.scaler_2d,
-                f'{self.root_path}/{self.NIA_work}_NIA_train_scaler2D_YearSplit.pkl'
+                f'{self.root_path}/{self.NIA_work}_scaler2D_{self.input_len}_{self.pred_len}.pkl'
             )
             joblib.dump(
                 self.scaler_3d,
-                f'{self.root_path}/{self.NIA_work}_NIA_train_scaler3D_YearSplit.pkl'
+                f'{self.root_path}/{self.NIA_work}_scaler3D_{self.input_len}_{self.pred_len}.pkl'
             )
-            
-            joblib.dump(X_tr, f'{self.root_path}/{self.NIA_work}_processed_X_train_YearSplit.pkl')
-            joblib.dump(y_tr, f'{self.root_path}/{self.NIA_work}_processed_y_train_YearSplit.pkl')
-            joblib.dump(X_val, f'{self.root_path}/{self.NIA_work}_processed_X_val_YearSplit.pkl')
-            joblib.dump(y_val, f'{self.root_path}/{self.NIA_work}_processed_y_val_YearSplit.pkl')
-            joblib.dump(X_te, f'{self.root_path}/{self.NIA_work}_processed_X_test_YearSplit.pkl')
-            joblib.dump(y_te, f'{self.root_path}/{self.NIA_work}_processed_y_test_YearSplit.pkl')
+
+            joblib.dump(X_tr,
+                        f'{self.root_path}/{self.NIA_work}_meta_X_train_{self.input_len}_{self.pred_len}.pkl')
+            joblib.dump(y_tr,
+                        f'{self.root_path}/{self.NIA_work}_meta_y_train_{self.input_len}_{self.pred_len}.pkl')
+            joblib.dump(X_val,
+                        f'{self.root_path}/{self.NIA_work}_meta_X_val_{self.input_len}_{self.pred_len}.pkl')
+            joblib.dump(y_val,
+                        f'{self.root_path}/{self.NIA_work}_meta_y_val_{self.input_len}_{self.pred_len}.pkl')
+            joblib.dump(X_te,
+                        f'{self.root_path}/{self.NIA_work}_meta_X_test_{self.input_len}_{self.pred_len}.pkl')
+            joblib.dump(y_te,
+                        f'{self.root_path}/{self.NIA_work}_meta_y_test_{self.input_len}_{self.pred_len}.pkl')
             # finished if block
 
         # when saved pre-processed file exist: just load files!
         self.X = joblib.load(
-            f'{self.root_path}/{self.NIA_work}_processed_X_{self.flag}_YearSplit.pkl')
+            f'{self.root_path}/{self.NIA_work}_meta_X_{self.flag}_{self.input_len}_{self.pred_len}.pkl')
         self.y = joblib.load(
-            f'{self.root_path}/{self.NIA_work}_processed_y_{self.flag}_YearSplit.pkl')
+            f'{self.root_path}/{self.NIA_work}_meta_y_{self.flag}_{self.input_len}_{self.pred_len}.pkl')
 
         if self.is_2d:
             self.scaler = joblib.load(  # train 기간에 대해 맞춰진 것
-                f'{self.root_path}/{self.NIA_work}_NIA_train_scaler2D_YearSplit.pkl') 
-            # (N, T, C) to (N, T * C)
-            self.X = self.X.reshape(self.X.shape[0], -1)
-            self.y = self.y.reshape(self.X.shape[0], -1)
-
+                f'{self.root_path}/{self.NIA_work}_scaler2D_{self.input_len}_{self.pred_len}.pkl')
+            self.X = self.X.reshape(self.X.shape[0], -1)  # (N, T, C) to (N, T * C)
+            self.y = self.y.reshape(self.X.shape[0], -1)  # (N, T, C) to (N, T * C)
         else:
             self.scaler = joblib.load(  # train 기간에 대해 맞춰진 것
-                f'{self.root_path}/{self.NIA_work}_NIA_train_scaler3D_YearSplit.pkl')
-        
-        # apply normalization
+                f'{self.root_path}/{self.NIA_work}_scaler3D_{self.input_len}_{self.pred_len}.pkl')
+
         self.X = self.scaler.transform(self.X)
         self.y = self.scaler.transform(self.y)
 
@@ -228,8 +231,10 @@ class Dataset_NIA(Dataset):
     def __getitem__(self, index):
         return self.X[index, ...], self.y[index, ...]
 
+
     def __len__(self):
         return len(self.X)
+
 
     def inverse_transform(self, data, is_dnn=False):
         return self.scaler.inverse_transform(data, is_dnn)

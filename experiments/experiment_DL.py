@@ -36,6 +36,7 @@ class Experiment_DL(Exp_Basic):
     valid()
     test()
         FIXME: valid, test 중복되는거 같은데 중복 없애기
+        FIXME: HPO: grid search로
     _process_one_batch()
         : get ground truth, prediction result of one batch
         both with scaled and without scaled
@@ -216,7 +217,7 @@ class Experiment_DL(Exp_Basic):
             print("Epoch: {} cost time: {}".format(
                 epoch + 1, time.time()-epoch_time))
             train_loss = np.average(train_loss)
-            
+
             print('--------start to validate-----------')
             valid_loss = self.valid(self.val_loader, criterion)
 

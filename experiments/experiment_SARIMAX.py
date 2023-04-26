@@ -41,19 +41,6 @@ def SARIMAX_multiprocess(i: int, pred_len: int=None,
                 )
         # print(fit_res.mle_retvals)
 
-        # method : str, optional
-        #     The `method` determines which solver from `scipy.optimize`
-        #     is used, and it can be chosen from among the following strings:
-
-        #     - 'newton' for Newton-Raphson
-        #     - 'nm' for Nelder-Mead
-        #     - 'bfgs' for Broyden-Fletcher-Goldfarb-Shanno (BFGS)
-        #     - 'lbfgs' for limited-memory BFGS with optional box constraints
-        #     - 'powell' for modified Powell's method
-        #     - 'cg' for conjugate gradient
-        #     - 'ncg' for Newton-conjugate gradient
-        #     - 'basinhopping' for global basin-hopping solver
-
         if fit_res.aic < best_aic:
             best_aic = fit_res.aic
             best_pdq = (p,  d, q)
@@ -66,7 +53,6 @@ def SARIMAX_multiprocess(i: int, pred_len: int=None,
     pred_test_regressor = best_fit_res.forecast(steps=pred_len, exog=x_test_tmp)
     # fcast_res1 = best_fit_res.get_forecast(steps=pred_len, exog=x_test)
     # fcast_res1.summary_frame()['mean']
-    
     return np.clip(pred_test_regressor, 0, 1)
 
 
@@ -103,7 +89,6 @@ def Experiment_SARIMAX(dataset: object, pred_len: int=None, n_worker:int=20
                             chunksize=1)
     # 병렬처리 후 : 20 test sample의 SARIMAX 결과 내는데 1분 소요됨
     # list appended list (N x pred_len)
-    
     return y_test_label, np.array(pred_test)
 
 

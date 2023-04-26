@@ -1,4 +1,4 @@
-from typing import List, Union, Tuple, Dict
+from typing import Dict
 
 import numpy as np
 from sklearn.metrics import accuracy_score, confusion_matrix, f1_score
@@ -49,33 +49,6 @@ def metric_classifier(true: np.ndarray, pred: np.ndarray) -> Dict:
     result_dict['TN'] = cm[3]
 
     return result_dict
-    """
-    # old way
-    pred_round = pred.round()
-
-    # get initial 6*10 minutes and get max value
-    pred_max = np.max(pred_round[:,:pts_in_1h], axis=1)
-    true_max = np.max(true[:,:pts_in_1h], axis=1)
-    assert np.max(pred_max, axis=None) in [0, 1]
-
-    acc_1h = np.sum(pred_max == true_max)/pred_max.size
-    # accuracy_score(true_flat, pred_flat)
-
-    pred_round_flat = pred_round.flatten()
-    true_flat = true.flatten()
-    pred_max_flat = pred_max.flatten()
-    true_max_flat = true_max.flatten()
-    cm_max = confusion_matrix(true_max_flat, pred_max_flat) 
-    print(f'{cm_max}, row : obs, pred : columns')
-
-    f1_1h = f1_score(true_max_flat, pred_max_flat)
-    
-    f1 = f1_score(pred_round_flat, true_flat)
-    acc = accuracy_score(pred_round_flat, true_flat)
-    confusion_matrix(true_flat, pred_round_flat) 
-    
-    return acc, f1, acc_1h, f1_1h
-    """
 
 
 def Corr(true: np.ndarray, pred: np.ndarray) -> float:
