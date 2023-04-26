@@ -15,7 +15,45 @@ warnings.filterwarnings('ignore')
 
 
 class Dataset_NIA(Dataset):
-    def __init__(self, args: dict = None, flag: str = None, is_2d: bool = False,
+    """ 
+    if saved meta data is not exist,
+    load dataframe and preprocess instances
+    save 2d, 3d scaler and train / validation / test instances
+
+    # implementation details 
+    csv : 매년 6월01일 00시 ~ 8월 31일 23시 55분까지 5분간격.
+
+    train/val/test split 방식:
+        Split Way1: tr, val, test 기간 따로 정하여 나누는 방법.  <--- Current Way
+        Split Way2: 8:1:1 timestamp 갯수로 나누는 방법.  <--- Improper Way
+
+    mode통합 instance 추출:
+        train set, val set, test set 힌번에 추출하고 저장하는 방식
+        즉 training phase에 val, test set 추출해서 
+        val, test시에는 저장된거 불러오기만 함
+
+    instance 추출:
+        all_site 분리해서 샘플 추출함 (항별로 연속된 시간이 아니므로)
+
+    In case of training dataset extaction:
+        Read 'DC' --> train val test
+                        +
+        Read 'HD' --> train val test
+                        +
+        Read 'JM' --> train val test
+                        +
+        Read 'NS' --> train val test
+                        +
+        Read 'SJ' --> train val test
+                        ||
+        merge final : train val test
+
+        fit scaler using merged train set
+        save the scaler object as pickle
+        when loading saved file : the file is NOT normalized
+        You should normalize first when loading saved instances!    
+    """
+    def __init__(self, args: dict=None, flag: str=None, is_2d: bool=False,
                  ) -> None:
         assert flag != None, "Please specify 'train' or 'val' or 'test' flag"
         assert args.pred_len != None and args.input_len != None, \
@@ -41,6 +79,7 @@ class Dataset_NIA(Dataset):
 
         self.__read_data__()
 
+
     def load_df(self,
                 csv_pth: str,
                 site: str,
@@ -59,6 +98,7 @@ class Dataset_NIA(Dataset):
         df['wave direction'] -= angle_inci_beach  # wave direction 보정
         return df
 
+
     def get_instances(self, df: pd.DataFrame) -> Tuple[List, int]:
         instance_list = []
         nonan = 0
@@ -76,6 +116,7 @@ class Dataset_NIA(Dataset):
                 nonan += 1
 
         return np.array(instance_list), nonan
+
 
     def get_instance_of_all_sites_multiprocess(self,
                                                i: int,
@@ -108,40 +149,8 @@ class Dataset_NIA(Dataset):
 
         return Xy_inst_tr, Xy_inst_val, Xy_inst_val
 
+
     def __read_data__(self) -> None:
-        """
-        csv : 매년 6월01일 00시 ~ 8월 31일 23시 55분까지 5분간격.
-
-        train/val/test split 방식:
-            Split Way1: tr, val, test 기간 따로 정하여 나누는 방법.  <--- Current Way
-            Split Way2: 8:1:1 timestamp 갯수로 나누는 방법.  <--- Improper Way
-
-        mode통합 instance 추출:
-            train set, val set, test set 힌번에 추출하고 저장하는 방식
-            즉 training phase에 val, test set 추출해서 
-            val, test시에는 저장된거 불러오기만 함
-
-        instance 추출:
-            all_site 분리해서 샘플 추출함 (항별로 연속된 시간이 아니므로)
-
-        In case of training dataset extaction:
-            Read 'DC' --> train val test
-                            +
-            Read 'HD' --> train val test
-                            +
-            Read 'JM' --> train val test
-                            +
-            Read 'NS' --> train val test
-                            +
-            Read 'SJ' --> train val test
-                            ||
-            merge final : train val test
-
-            fit scaler using merged train set
-            save the scaler object as pickle
-            when loading saved file : the file is NOT normalized
-            You should normalize first when loading saved instances!
-        """
         site_names = ['DC', 'HD', 'JM', 'NS', 'SJ']
         angle_inci_beach = [245, 178, 175, 47, 142]  # incidence angle of each beach
 
