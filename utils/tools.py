@@ -2,6 +2,7 @@ from typing import List, Set, Union
 import os
 import numpy as np
 import torch
+import pandas as pd
 
 
 def save_model(epoch, lr, model, model_dir, model_name='pems08', horizon=12):
@@ -135,7 +136,7 @@ class StandardScaler():
                 if torch.is_tensor(data) else self.mean
             std = torch.from_numpy(self.std).type_as(data).to(data.device) \
                 if torch.is_tensor(data) else self.std
-            
+
         return (data * std) + mean
 
         data.shape  # test는 (16, T, 10)
@@ -151,3 +152,13 @@ def print_performance(model_name: str, metrics: dict) -> None:
     for key in metrics:
         print(f"{key}: {metrics[key]}")
     print('*'*41)
+
+
+def record_studyname_metrics(df: pd.DataFrame, study_name: str, metrics: dict
+                             ) -> pd.DataFrame:
+    idx = len(df)
+    df.loc[idx, 'study_name'] = study_name
+    for item in metrics:
+        df.loc[idx, item] = metrics[item]
+    
+    return df

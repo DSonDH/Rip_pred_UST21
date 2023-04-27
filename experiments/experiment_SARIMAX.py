@@ -1,3 +1,5 @@
+from functools import partial
+from tqdm.contrib.concurrent import process_map
 from typing import Tuple
 import numpy as np
 import statsmodels.api as sm
@@ -7,21 +9,18 @@ import warnings
 from statsmodels.tools.sm_exceptions import ConvergenceWarning
 warnings.simplefilter('ignore', ConvergenceWarning)
 
-from tqdm.contrib.concurrent import process_map
-from functools import partial
 
-
-def SARIMAX_multiprocess(i: int, 
-                         pred_len: int=None, 
-                         X_test: np.ndarray=None, 
-                         y_test: np.ndarray=None,
-                        ) -> np.ndarray:
+def SARIMAX_multiprocess(i: int,
+                         pred_len: int = None,
+                         X_test: np.ndarray = None,
+                         y_test: np.ndarray = None,
+                         ) -> np.ndarray:
     """tuning by changing model hyper parameter"""
 
     y_train_tmp = X_test[i, :, 10]
     x_train_tmp = X_test[i, :, :10]
     x_test_tmp = y_test[i, :, :10]
-    
+
     # Fit the model
     p = range(0, 3)
     d = range(0, 3)
@@ -33,13 +32,13 @@ def SARIMAX_multiprocess(i: int,
 
     for p, d, q, method in pdqs:
         model = sm.tsa.statespace.SARIMAX(y_train_tmp,  # Time x 1
-                                        exog=x_train_tmp,  # Time x m
-                                        order=(p, d, q),
-                                        )
-        fit_res = model.fit(disp=False, 
+                                          exog=x_train_tmp,  # Time x m
+                                          order=(p, d, q),
+                                          )
+        fit_res = model.fit(disp=False,
                             maxiter=200,
                             method=method
-                )
+                            )
         # print(fit_res.mle_retvals)
 
         if fit_res.aic < best_aic:
@@ -47,18 +46,19 @@ def SARIMAX_multiprocess(i: int,
             best_pdq = (p,  d, q)
             best_model = model
             best_fit_res = fit_res
-    
+
     # print(best_fit_res.summary())
     # print(best_fit_res.mle_retvals)
 
-    pred_test_regressor = best_fit_res.forecast(steps=pred_len, exog=x_test_tmp)
+    pred_test_regressor = best_fit_res.forecast(
+        steps=pred_len, exog=x_test_tmp)
     # fcast_res1 = best_fit_res.get_forecast(steps=pred_len, exog=x_test)
     # fcast_res1.summary_frame()['mean']
     return np.clip(pred_test_regressor, 0, 1)
 
 
-def Experiment_SARIMAX(dataset: object, pred_len: int=None, n_worker:int=20
-                       )->Tuple:
+def Experiment_SARIMAX(dataset: object, pred_len: int = None, n_worker: int = 20
+                       ) -> Tuple:
     """
     fit test set data using SARIMAX algorithm and 
     calculate accuracyy, f1 score for all test instances.
@@ -72,25 +72,26 @@ def Experiment_SARIMAX(dataset: object, pred_len: int=None, n_worker:int=20
 
     # Dataset
 
-    #FIXME: sample 숫자 일부러 줄인거 없애기
-    #FIXME: sample 숫자 일부러 줄인거 없애기
+    # FIXME: sample 숫자 일부러 줄인거 없애기
+    # FIXME: sample 숫자 일부러 줄인거 없애기
     X_test = dataset.X[:30, ...]  # N x 32 x 16
     y_test = dataset.y[:30, ...]  # N x 16 x 16
-    y_test_label = y_test[:, :, 10]
-    # print(X_test.shape,y_test.shape)
-
-    assert(X_test.shape[2] == 11)
-    assert(y_test.shape[2] == 11)
+    
+    assert X_test.shape[2] == 11 and y_test.shape[2] == 11
 
     # sample별 병렬로 결과 냄. tuning을 병렬화 하는게 아님.
-    partial_wrapper = partial(SARIMAX_multiprocess, X_test=X_test, y_test=y_test, 
-                                                    pred_len=pred_len)
-    pred_test = process_map(partial_wrapper, range(len(X_test)),
-                            max_workers=n_worker, 
-                            chunksize=1)
-    # 병렬처리 후 : 20 test sample의 SARIMAX 결과 내는데 1분 소요됨
-    # list appended list (N x pred_len)
-    return y_test_label, np.array(pred_test)
+    partial_wrapper = partial(SARIMAX_multiprocess,
+                              X_test=X_test,
+                              y_test=y_test,
+                              pred_len=pred_len
+                              )
+    pred_test = process_map(partial_wrapper,
+                            range(len(X_test)),
+                            max_workers=n_worker,
+                            chunksize=1
+                            )
+    
+    return y_test, np.array(pred_test)
 
 
 if __name__ == '__main__':

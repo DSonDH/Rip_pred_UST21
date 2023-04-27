@@ -1,0 +1,7 @@
+Unnamed: 0,study_name,acc,f1,TP,FP,FN,TN,mae,mse,rmse,mape,mspe,corr
+0.0,SARIMAX_predH1_inputLen24_clasf,1.0,1.0,0.0,0.0,0.0,30.0,,,,,,
+1.0,SARIMAX_predH2_inputLen24_clasf,1.0,1.0,0.0,0.0,0.0,30.0,,,,,,
+2.0,SARIMAX_predH0~6_inputLen24_regrs,1.0,1.0,0.0,0.0,0.0,720.0,0.0,0.0,0.0,,,
+,SARIMAX_predH1_inputLen24_clasf,1.0,1.0,0.0,0.0,0.0,30.0,,,,,,
+,SARIMAX_predH2_inputLen24_clasf,1.0,1.0,0.0,0.0,0.0,30.0,,,,,,
+,SARIMAX_predH0~6_inputLen24_regrs,1.0,1.0,0.0,0.0,0.0,720.0,0.0,0.0,0.0,,,

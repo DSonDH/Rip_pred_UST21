@@ -8,7 +8,7 @@ from experiments.experiment_SARIMAX import Experiment_SARIMAX
 from experiments.experiment_ML import Experiment_ML
 from experiments.experiment_DL import Experiment_DL
 from metrics.NIA_metrics import metric_classifier, metric_regressor, metric_all
-from utils.tools import print_performance
+from utils.tools import record_studyname_metrics
 import pandas as pd
 
 
@@ -325,19 +325,19 @@ def call_experiments_record_performances(model: str,
             n_worker=20
         )
 
-        # 원하는 시간 뽑아서 성능 계산
-        for i in [1, 3, 6]:
-            metrics = metric_classifier(y_test_label[:, itv * i - 1],
+        y_test_org = data_set_test.scaler.inverse_transform(y_test_label)[:, :, 10]
+        for i in [1, 2]: # time of interest metric
+            metrics = metric_classifier(y_test_org[:, itv * i - 1],
                                         pred_test[:, itv * i - 1]
                                         )
-            study_name = f'{args.model_name}_predH{i}_inputLen{args.pred_len}_clasf'
-            df[i] = (study_name, metrics)
-
-        # 전체 시간의 성능 계산
-        metrics_allRange = metric_all(y_test_label, pred_test)
-        study_name = f'{args.model_name}_predH0~6_inputLen{args.pred_len}_regrs'
-        df[i] = (study_name, metrics_allRange)
-        df.to_csv('Results.csv')
+            study_name = f'{args.model_name}_predH{i}_IL{args.input_len}_PL{args.pred_len}_clasf'
+            df = record_studyname_metrics(df, study_name, metrics)
+        
+        # full time metric
+        metrics_allRange = metric_all(y_test_org, pred_test)
+        study_name = f'{args.model_name}_predH0~2_IL{args.input_len}_PL{args.pred_len}_regrs'
+        df = record_studyname_metrics(df, study_name, metrics_allRange)
+        df.to_csv('Results.csv', index=False)
 
     elif args.model_name in ['SVM']:
         pass
