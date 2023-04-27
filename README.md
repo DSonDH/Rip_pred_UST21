@@ -8,8 +8,10 @@ This project is released under the [Apache 2.0 license](LICENSE).
 ## Get started
 mainly inplemented using Pytorch framework.
 
+
 ### Experimented model
-* Prophet (nonparametric regression model)
+* SARIMAX
+* SVM
 * Machine Learning Models
     - Random Forest
     - Extreme Gradient Boosting
@@ -38,6 +40,7 @@ transformer visualization :
 
 
 ### Requirements
+#FIXME: update environment files
 Install the required package first:
 ```
 cd rippred

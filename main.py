@@ -311,13 +311,14 @@ def call_experiments_record_performances(model: str,
 
     if args.model_name == 'SARIMAX':
         DatasetClass = NIA_data_loader_csvOnly_YearSplit.Dataset_NIA
-
         data_set_test = DatasetClass(
             args=args,
             flag='test',
             is_2d=False
         )
 
+        return  #FIXME: remove it
+    
         assert args.pred_len == itv * 6, 'pred length of SARIMAX should be 72'
         # SARIMAX는 training과정이 없으며, 언제나 testset을 활용함
         y_test_label, pred_test = Experiment_SARIMAX(
@@ -412,17 +413,14 @@ if __name__ == '__main__':
     # data setting. !! 5분 간격이므로 1시간에 12개 존재함
     itv = 12
 
-
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!
-    #TODO: input sequence길이 다른 시계열 연구에서는 어떻게 하는지 보고
-    # 비슷하게 세팅해서 실험하기.
-
-
-
-
-
-    input_len = [itv * i for i in [1, 3, 6]]  # FIXME:
-    pred_len = [itv * 6]  # FIXME:
+    # pred_len보다 2배는 길게 input_len 설정하는 듯.
+    # 6시간 예측이면 12시간 input넣어줘야 하는데, 길이기 길면 길수록 결측도 많아지므로
+    # 샘플이 급격히 줄거나 class imbalance가 증가할 수도 있음 이에 따른 성능 하락도 고려해야함
+    # 그리고 모델 complexity에 따라서 필요한 input sequence가 달라진다고 하니깐.
+    # 최종 best 모델로 결론 낼 때에 맞는 input_len을 제시하면 될듯
+    input_len = [itv * i for i in [2, 4]]  # FIXME:
+    # pred_len = [itv * i for i in [1]]  # FIXME:
+    pred_len = [itv * i for i in [1, 2]]  # FIXME:
     input_dim = 11  # FIXME: n_feature. site정보인 onehot vector는 넣지 않기로 함
 
     # trainig setting
@@ -440,3 +438,5 @@ if __name__ == '__main__':
                                              input_dim, n_workers, epochs,
                                              batchSize, patience, learningRate
                                              )
+
+    print()

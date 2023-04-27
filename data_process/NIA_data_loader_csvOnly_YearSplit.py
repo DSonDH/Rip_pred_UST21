@@ -216,6 +216,19 @@ class Dataset_NIA(Dataset):
                         f'{self.root_path}/{self.NIA_work}_meta_X_test_{self.input_len}_{self.pred_len}.pkl')
             joblib.dump(y_te,
                         f'{self.root_path}/{self.NIA_work}_meta_y_test_{self.input_len}_{self.pred_len}.pkl')
+            
+            # input_len, pred_len에 따른 X, y 갯수, class 비율 조사
+            df = pd.DataFrame()
+            df.loc[0, 0] = len(X_tr)
+            df.loc[1, 0] = len(y_tr)
+            df.loc[2, 0] = y_tr[..., 10].sum() / y_tr.size
+            df.loc[3, 0] = len(X_val)
+            df.loc[4, 0] = len(y_val)
+            df.loc[5, 0] = y_val[..., 10].sum() / y_val.size
+            df.loc[6, 0] = len(X_te)
+            df.loc[7, 0] = len(y_te)
+            df.loc[8, 0] = y_te[..., 10].sum() / y_te.size
+            df.to_csv(f'./results/NSample_analysis_{self.NIA_work}_{self.input_len}_{self.pred_len}.csv')
             # finished if block
 
         # when saved pre-processed file exist: just load files!
