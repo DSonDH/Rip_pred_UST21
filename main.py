@@ -29,7 +29,7 @@ def parse_args(model: str,
     NIA_work = 'ripcurrent_100p'  # data 전처리 meta file 저장이름 변경용
     root_path = f'./datasets/{study}/'
     year = 'allYear'  # data read할 csv파일
-    port = ['AllPorts']
+    port = 'AllPorts'
     fname = f'obs_qc'
 
     parser = argparse.ArgumentParser(description=f'{model} on {study} dataset')
@@ -317,9 +317,7 @@ def call_experiments_record_performances(model: str,
             is_2d=False
         )
 
-        return  #FIXME: remove it
-    
-        assert args.pred_len == itv * 6, 'pred length of SARIMAX should be 72'
+        assert args.pred_len == itv * 2, 'pred length of SARIMAX should be 24'
         # SARIMAX는 training과정이 없으며, 언제나 testset을 활용함
         y_test_label, pred_test = Experiment_SARIMAX(
             data_set_test,
@@ -419,8 +417,8 @@ if __name__ == '__main__':
     # 그리고 모델 complexity에 따라서 필요한 input sequence가 달라진다고 하니깐.
     # 최종 best 모델로 결론 낼 때에 맞는 input_len을 제시하면 될듯
     input_len = [itv * i for i in [2, 4]]  # FIXME:
-    # pred_len = [itv * i for i in [1]]  # FIXME:
-    pred_len = [itv * i for i in [1, 2]]  # FIXME:
+    pred_len = [itv * i for i in [2]]  # FIXME:
+    # pred_len = [itv * i for i in [1, 2]]  # FIXME:
     input_dim = 11  # FIXME: n_feature. site정보인 onehot vector는 넣지 않기로 함
 
     # trainig setting
@@ -438,5 +436,3 @@ if __name__ == '__main__':
                                              input_dim, n_workers, epochs,
                                              batchSize, patience, learningRate
                                              )
-
-    print()

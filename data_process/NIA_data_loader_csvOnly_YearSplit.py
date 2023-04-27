@@ -129,15 +129,15 @@ class Dataset_NIA(Dataset):
 
         df = self.load_df(csv_pth, site, angle_inci_beach[i], self.input_dim)
 
-        # add onehot 효과가 별로 없으므로, 삭제함.
+        # adding onehot was not helpful.
         # onehot = np.zeros(n_sites)
         # onehot[i] = 1
         # df[['site_' + item for item in site_names]] = onehot
 
         # train validation test split = 2 year: 1 year : 1 year
-        Xy_train = df[: '2020-09-01 00:00']
-        Xy_val = df['2020-09-01 00:00':'2021-09-01 00:00']
-        Xy_test = df['2021-09-01 00:00':]
+        Xy_train = df[ : '2020-09-01 00:00']
+        Xy_val = df['2020-09-01 00:00' : '2021-09-01 00:00']
+        Xy_test = df['2021-09-01 00:00' : ]
 
         # extract instances
         Xy_inst_tr, nonan_tr = self.get_instances(Xy_train)
@@ -147,7 +147,7 @@ class Dataset_NIA(Dataset):
               f': {len(Xy_inst_val)} : {len(Xy_inst_te)}'
               )
 
-        return Xy_inst_tr, Xy_inst_val, Xy_inst_val
+        return Xy_inst_tr, Xy_inst_val, Xy_inst_te
 
 
     def __read_data__(self) -> None:
@@ -167,15 +167,18 @@ class Dataset_NIA(Dataset):
                                       csv_pth=csv_pth,
                                       angle_inci_beach=angle_inci_beach
                                       )
+            # TODO: process_map seems to cause "OSError: handle is closed"
+            # when main.py procedure ends. No problem is caused while 
+            # main.py is running.
             meta = process_map(partial_wrapper,
                                range(len(site_names)),
                                site_names,
                                max_workers=5,
                                chunksize=1
-                               )  # multiprocessing 하니깐 20배는 빨라짐
+                               )  # multiprocessing leads to about 20X faster processing
             meta = np.array(meta)
 
-            assert meta.shape == (len(site_names), 3)  # site수 x tr/val/te 3종류
+            assert meta.shape == (len(site_names), 3)  # num_site x 3(tr/val/te)
 
             # merge each train set, validation set, test set
             Xy_train = np.concatenate(meta[:, 0], axis=0)
@@ -217,17 +220,14 @@ class Dataset_NIA(Dataset):
             joblib.dump(y_te,
                         f'{self.root_path}/{self.NIA_work}_meta_y_test_{self.input_len}_{self.pred_len}.pkl')
             
-            # input_len, pred_len에 따른 X, y 갯수, class 비율 조사
+            # record N_Xy, class ratio as input_len and pred_len changes
             df = pd.DataFrame()
             df.loc[0, 0] = len(X_tr)
-            df.loc[1, 0] = len(y_tr)
-            df.loc[2, 0] = y_tr[..., 10].sum() / y_tr.size
-            df.loc[3, 0] = len(X_val)
-            df.loc[4, 0] = len(y_val)
-            df.loc[5, 0] = y_val[..., 10].sum() / y_val.size
-            df.loc[6, 0] = len(X_te)
-            df.loc[7, 0] = len(y_te)
-            df.loc[8, 0] = y_te[..., 10].sum() / y_te.size
+            df.loc[1, 0] = y_tr[..., 10].sum() / y_tr.size
+            df.loc[2, 0] = len(X_val)
+            df.loc[3, 0] = y_val[..., 10].sum() / y_val.size
+            df.loc[4, 0] = len(X_te)
+            df.loc[5, 0] = y_te[..., 10].sum() / y_te.size
             df.to_csv(f'./results/NSample_analysis_{self.NIA_work}_{self.input_len}_{self.pred_len}.csv')
             # finished if block
 
@@ -238,12 +238,12 @@ class Dataset_NIA(Dataset):
             f'{self.root_path}/{self.NIA_work}_meta_y_{self.flag}_{self.input_len}_{self.pred_len}.pkl')
 
         if self.is_2d:
-            self.scaler = joblib.load(  # train 기간에 대해 맞춰진 것
+            self.scaler = joblib.load(
                 f'{self.root_path}/{self.NIA_work}_scaler2D_{self.input_len}_{self.pred_len}.pkl')
             self.X = self.X.reshape(self.X.shape[0], -1)  # (N, T, C) to (N, T * C)
             self.y = self.y.reshape(self.X.shape[0], -1)  # (N, T, C) to (N, T * C)
         else:
-            self.scaler = joblib.load(  # train 기간에 대해 맞춰진 것
+            self.scaler = joblib.load(
                 f'{self.root_path}/{self.NIA_work}_scaler3D_{self.input_len}_{self.pred_len}.pkl')
 
         self.X = self.scaler.transform(self.X)

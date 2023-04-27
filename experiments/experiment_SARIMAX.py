@@ -79,8 +79,8 @@ def Experiment_SARIMAX(dataset: object, pred_len: int=None, n_worker:int=20
     y_test_label = y_test[:, :, 10]
     # print(X_test.shape,y_test.shape)
 
-    assert(X_test.shape[2] >= 11)
-    assert(y_test.shape[2] >= 11)
+    assert(X_test.shape[2] == 11)
+    assert(y_test.shape[2] == 11)
 
     # sample별 병렬로 결과 냄. tuning을 병렬화 하는게 아님.
     partial_wrapper = partial(SARIMAX_multiprocess, X_test=X_test, y_test=y_test, 
