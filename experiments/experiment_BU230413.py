@@ -71,7 +71,7 @@ class Experiment_DL(Exp_Basic):
     def _get_data(self, flag):
         args = self.args
         if args.nia_csv_base:
-            module = NIA_data_loader_csvOnly_YearSplit.Dataset_NIA
+            module = NIA_data_loader_csvOnly_YearSplit.Dataset_NIA_class
         else:
             module = NIA_data_loader_jsonRead.Dataset_NIA
             

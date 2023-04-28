@@ -37,7 +37,7 @@ class Experiment_ML(Exp_Basic):
         super(Experiment_ML, self).__init__(args)
         self.print_per_iter = 100;
 
-        DatasetClass = NIA_data_loader_csvOnly_YearSplit.Dataset_NIA
+        DatasetClass = NIA_data_loader_csvOnly_YearSplit.Dataset_NIA_class
             
         self.dataset = DatasetClass(
                            root_path = args.root_path,

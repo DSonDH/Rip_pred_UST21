@@ -139,12 +139,6 @@ class StandardScaler():
 
         return (data * std) + mean
 
-        data.shape  # test는 (16, T, 10)
-        std.shape  # (32, 10)
-        type(data)
-        type(std)
-        self.std.shape
-
 
 def print_performance(model_name: str, metrics: dict) -> None:
     print('*'*41)

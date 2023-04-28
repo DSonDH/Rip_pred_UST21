@@ -47,17 +47,17 @@ class Experiment_DL(Exp_Basic):
         self.print_per_iter = 100
 
         # train / validation / test dataset and dataloader setting
-        self.dataset_train = NIA_data_loader_csvOnly_YearSplit.Dataset_NIA(
+        self.dataset_train = NIA_data_loader_csvOnly_YearSplit.Dataset_NIA_class(
             args=args,
             flag='train',
             is_2d=False
         )
-        self.dataset_val = NIA_data_loader_csvOnly_YearSplit.Dataset_NIA(
+        self.dataset_val = NIA_data_loader_csvOnly_YearSplit.Dataset_NIA_class(
             args=args,
             flag='val',
             is_2d=False
         )
-        self.dataset_test = NIA_data_loader_csvOnly_YearSplit.Dataset_NIA(
+        self.dataset_test = NIA_data_loader_csvOnly_YearSplit.Dataset_NIA_class(
             args=args,
             flag='test',
             is_2d=False

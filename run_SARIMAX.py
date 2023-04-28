@@ -5,7 +5,6 @@ import itertools
 
 from data_process import NIA_data_loader_csvOnly_YearSplit
 from experiments.experiment_SARIMAX import Experiment_SARIMAX
-from experiments.experiment_SVM import Experiment_SVM
 from experiments.experiment_ML import Experiment_ML
 from experiments.experiment_DL import Experiment_DL
 from metrics.NIA_metrics import metric_classifier, metric_regressor, metric_all
@@ -312,7 +311,11 @@ def call_experiments_record_performances(model: str,
 
     if args.model_name == 'SARIMAX':
         DatasetClass = NIA_data_loader_csvOnly_YearSplit.Dataset_NIA_class
-        data_set_test = DatasetClass(args=args, flag='test', is_2d=False)
+        data_set_test = DatasetClass(
+            args=args,
+            flag='test',
+            is_2d=False
+        )
 
         assert args.pred_len == itv * 2, 'pred length of SARIMAX should be 24'
         # SARIMAX는 training과정이 없으며, 언제나 testset을 활용함
@@ -337,33 +340,8 @@ def call_experiments_record_performances(model: str,
         df.to_csv('./results/Results.csv', index=False)
 
     elif args.model_name in ['SVM']:
-        DatasetClass = NIA_data_loader_csvOnly_YearSplit.Dataset_NIA_class
-        data_set_train = DatasetClass(args=args, flag='train', is_2d=True)
-        data_set_val = DatasetClass(args=args, flag='val', is_2d=True)
-        data_set_test = DatasetClass(args=args, flag='test', is_2d=True)
-
-        assert args.pred_len == itv * 2, 'pred length of SARIMAX should be 24'
-
-        y_test_label, pred_test = Experiment_SVM(
-            data_set_test,
-            pred_len=pred_len,
-            n_worker=20
-        )
-
-        y_test_org = data_set_test.scaler.inverse_transform(y_test_label)[:, :, 10]
-        for i in [1, 2]: # time of interest metric
-            metrics = metric_classifier(y_test_org[:, itv * i - 1],
-                                        pred_test[:, itv * i - 1]
-                                        )
-            study_name = f'{args.model_name}_predH{i}_IL{args.input_len}_PL{args.pred_len}_clasf'
-            df = record_studyname_metrics(df, study_name, metrics)
-        
-        # full time metric
-        metrics_allRange = metric_all(y_test_org, pred_test)
-        study_name = f'{args.model_name}_predH0~2_IL{args.input_len}_PL{args.pred_len}_regrs'
-        df = record_studyname_metrics(df, study_name, metrics_allRange)
-        df.to_csv('./results/Results.csv', index=False)
-
+        pass
+        # TODO: write code !!!!!
 
     elif args.model_name in ['RF', 'XGB']:
         """
@@ -424,7 +402,7 @@ if __name__ == '__main__':
     # ===================================================
     # configs usually changed
 
-    model = 'SVM'  # FIXME:
+    model = 'SARIMAX'  # FIXME:
     # SARIMAX, SVM, RF, XGB, MLPvanilla, SimpleLinear, LightTS,
     # Simple1DCNN, SCINET, LSTM, Transformer, Informer
     do_train = True  # FIXME:

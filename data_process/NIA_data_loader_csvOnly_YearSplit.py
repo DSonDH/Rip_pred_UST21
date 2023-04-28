@@ -14,7 +14,7 @@ from functools import partial
 warnings.filterwarnings('ignore')
 
 
-class Dataset_NIA(Dataset):
+class Dataset_NIA_class(Dataset):
     """ 
     if saved meta data is not exist,
     load dataframe and preprocess instances
@@ -79,7 +79,7 @@ class Dataset_NIA(Dataset):
 
         self.__read_data__()
 
-
+    # @staticmethod
     def load_df(self,
                 csv_pth: str,
                 site: str,

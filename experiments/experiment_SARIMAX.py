@@ -34,6 +34,7 @@ def SARIMAX_multiprocess(i: int,
         model = sm.tsa.statespace.SARIMAX(y_train_tmp,  # Time x 1
                                           exog=x_train_tmp,  # Time x m
                                           order=(p, d, q),
+                                          enforce_stationarity=False
                                           )
         fit_res = model.fit(disp=False,
                             maxiter=200,
@@ -72,10 +73,9 @@ def Experiment_SARIMAX(dataset: object, pred_len: int = None, n_worker: int = 20
 
     # Dataset
 
-    # FIXME: sample 숫자 일부러 줄인거 없애기
-    # FIXME: sample 숫자 일부러 줄인거 없애기
-    X_test = dataset.X[:30, ...]  # N x 32 x 16
-    y_test = dataset.y[:30, ...]  # N x 16 x 16
+    # FIXME: [:30, ...]
+    X_test = dataset.X  # N x 32 x 16
+    y_test = dataset.y  # N x 16 x 16
     
     assert X_test.shape[2] == 11 and y_test.shape[2] == 11
 
@@ -126,4 +126,7 @@ if __name__ == '__main__':
         increasing order. For example, `[1,1,0,1]` denotes
         :math:`a + bt + ct^3`. Default is to not include a trend component.
         이안류 개별 라벨들은 어떤 추세라고 할수있지? linear? constant? polynomial?
+    enforce_stationarity : bool, optional
+        Whether or not to transform the AR parameters to enforce stationarity
+        in the autoregressive component of the model. Default is True.
     '''
