@@ -51,7 +51,7 @@ def draw_and_save(df: pd.DataFrame, save_path: str) -> None:
 # main
 draw_type1 = True
 csv_path = '/home/sdh/rippred/datasets/NIA/obs_qc_100p'
-save_path = '/home/sdh/rippred/result/feature_scatter_plot'
+save_path = '/home/sdh/rippred/results/feature_scatter_plot'
 site_names = ['DC', 'HD', 'JM', 'NS', 'SJ']
 angle_inci_beach = [245, 178, 175, 47, 142]
 featueres = ['rip index', 'wave height', 'wave period', 'tide height', 
@@ -74,6 +74,7 @@ if draw_type1:
             
             time_selection = (df['ob time'] > start_year) * (df['ob time'] < next_year)
             df_tmp = df[time_selection].drop(columns='ob time')
+            
             draw_and_save(df_tmp, f'{save_path}/all_feature_scatter_plot_{mode}_{site}.jpg')
 
         start_year = next_year

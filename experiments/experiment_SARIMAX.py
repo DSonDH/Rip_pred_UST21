@@ -41,7 +41,10 @@ def SARIMAX_multiprocess(i: int,
                             method=method
                             )
         # print(fit_res.mle_retvals)
-
+        # aic (Akaike information criterion): 
+        # AIC estimates the relative amount of information lost by 
+        # a given model: the less information a model loses, 
+        # the higher the quality of that model.
         if fit_res.aic < best_aic:
             best_aic = fit_res.aic
             best_pdq = (p,  d, q)

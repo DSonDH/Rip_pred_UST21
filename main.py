@@ -343,8 +343,10 @@ def call_experiments_record_performances(model: str,
         data_set_test = DatasetClass(args=args, flag='test', is_2d=True)
 
         assert args.pred_len == itv * 2, 'pred length of SARIMAX should be 24'
-
+        
         y_test_label, pred_test = Experiment_SVM(
+            data_set_train,
+            data_set_val,
             data_set_test,
             pred_len=pred_len,
             n_worker=20
