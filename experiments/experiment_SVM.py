@@ -6,7 +6,7 @@ from sklearn.metrics import f1_score
 
 
 def Experiment_SVM(dataset_train: object, dataset_val: object, dataset_test: object,
-                   pred_len: int = None, n_worker: int = 20
+                   pred_len: int = None, toi: int = None, n_worker: int = 20
                    ) -> Tuple:
     """
     fit test set data using SVM algorithm and 
@@ -14,10 +14,12 @@ def Experiment_SVM(dataset_train: object, dataset_val: object, dataset_test: obj
 
     Args: 
         dataset: dataset object which have train, val, test datset with scaler
+        toi (int) : time of interest. time to implement prediciton.
     Return:
         (testset prediction output, testset prediction label)
     """
     assert pred_len != None, 'pred_len argument should not be None'
+    assert toi != None, 'Time of Interst should not be None'
 
     X_train = dataset_train.X  # N x 32 x 16
     y_train = dataset_train.y  # N x 16 x 16
@@ -29,6 +31,13 @@ def Experiment_SVM(dataset_train: object, dataset_val: object, dataset_test: obj
     assert X_train.ndim == 2 and X_val.ndim == 2 and X_test.ndim == 2
     assert y_train.ndim == 2 and y_val.ndim == 2 and y_test.ndim == 2
 
+    y_train_reshape = y_train.reshape(-1, 11, pred_len)
+
+    #FIXME: label이 normalization된건가 ? ... norm 안되게 바꿔서 학습에 써야하나?
+    ㅇㄹㄴㅇㄻㄴㄻ
+    ㅇㅁㄴㅇㄻㄴ
+    y_train_toi = y_train_reshape[..., 10, toi]
+    
     # Support Vector Machine algorithms are not scale invariant,
     # so it is highly recommended to scale your data.
     # my dataloader first normalize them first.
@@ -65,10 +74,12 @@ def Experiment_SVM(dataset_train: object, dataset_val: object, dataset_test: obj
         # svm.NuSVR
 
         for k, v in zip(tuning_list, hp):
-            eval(f"classifier.set_params({k}={v})")
+            eval(f"classifier.set_params({k}='{v}')")
 
         classifier.fit(X_train, y_train)
-
+        #FIXME: mode hyperparameters to tune
+        
+        #FIXME: ValueError: y should be a 1d array, got an array of shape (37317, 264) instead
         pred_val = classifier.predict(X_val)
         
         f1 = f1_score(y_val, pred_val)

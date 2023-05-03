@@ -323,11 +323,11 @@ def call_experiments_record_performances(model: str,
         )
 
         y_test_org = data_set_test.scaler.inverse_transform(y_test_label)[:, :, 10]
-        for i in [1, 2]: # time of interest metric
-            metrics = metric_classifier(y_test_org[:, itv * i - 1],
-                                        pred_test[:, itv * i - 1]
+        for toi in [1, 2]: # time of interest metric
+            metrics = metric_classifier(y_test_org[:, itv * toi - 1],
+                                        pred_test[:, itv * toi - 1]
                                         )
-            study_name = f'{args.model_name}_predH{i}_IL{args.input_len}_PL{args.pred_len}_clasf'
+            study_name = f'{args.model_name}_predH{toi}_IL{args.input_len}_PL{args.pred_len}_clasf'
             df = record_studyname_metrics(df, study_name, metrics)
         
         # full time metric
@@ -344,20 +344,22 @@ def call_experiments_record_performances(model: str,
 
         assert args.pred_len == itv * 2, 'pred length of SARIMAX should be 24'
         
-        y_test_label, pred_test = Experiment_SVM(
-            data_set_train,
-            data_set_val,
-            data_set_test,
-            pred_len=pred_len,
-            n_worker=20
-        )
+        for toi in [1, 2]: # time of interest metric
+            y_test_label, pred_test = Experiment_SVM(
+                data_set_train,
+                data_set_val,
+                data_set_test,
+                pred_len=pred_len,
+                toi=toi,
+                n_worker=20
+            )
 
-        y_test_org = data_set_test.scaler.inverse_transform(y_test_label)[:, :, 10]
-        for i in [1, 2]: # time of interest metric
-            metrics = metric_classifier(y_test_org[:, itv * i - 1],
-                                        pred_test[:, itv * i - 1]
+            y_test_org = data_set_test.scaler.inverse_transform(y_test_label
+                                                                )[:, :, 10]
+            metrics = metric_classifier(y_test_org[:, itv * toi - 1],
+                                        pred_test[:, itv * toi - 1]
                                         )
-            study_name = f'{args.model_name}_predH{i}_IL{args.input_len}_PL{args.pred_len}_clasf'
+            study_name = f'{args.model_name}_predH{toi}_IL{args.input_len}_PL{args.pred_len}_clasf'
             df = record_studyname_metrics(df, study_name, metrics)
         
         # full time metric
