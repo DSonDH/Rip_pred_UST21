@@ -3,7 +3,7 @@ import numpy as np
 import itertools
 from sklearn import svm
 from sklearn.metrics import f1_score
-
+import time
 
 def Experiment_SVM(dataset_train: object, dataset_val: object, dataset_test: object,
                    pred_len: int = None, toi: int = None, n_worker: int = 20
@@ -31,23 +31,20 @@ def Experiment_SVM(dataset_train: object, dataset_val: object, dataset_test: obj
     assert X_train.ndim == 2 and X_val.ndim == 2 and X_test.ndim == 2
     assert y_train.ndim == 2 and y_val.ndim == 2 and y_test.ndim == 2
 
-    y_train_reshape = y_train.reshape(-1, 11, pred_len)
+    y_train = dataset_train.scaler.inverse_transform(y_train)
+    y_val = dataset_train.scaler.inverse_transform(y_val)
+    y_test = dataset_train.scaler.inverse_transform(y_test)
 
-    #FIXME: label이 normalization된건가 ? ... norm 안되게 바꿔서 학습에 써야하나?
-    ㅇㄹㄴㅇㄻㄴㄻ
-    ㅇㅁㄴㅇㄻㄴ
-    y_train_toi = y_train_reshape[..., 10, toi]
+    y_train_toi = y_train.reshape(-1, 11, pred_len)[..., 10, toi]
+    y_val_toi = y_val.reshape(-1, 11, pred_len)[..., 10, toi]
+    y_test_toi = y_test.reshape(-1, 11, pred_len)[..., 10, toi]
     
-    # Support Vector Machine algorithms are not scale invariant,
-    # so it is highly recommended to scale your data.
-    # my dataloader first normalize them first.
-    
+    #TODO: add more grid search parameters !!
+    #     
     tuning_list = ['kernel', 'C', 'class_weight']
     kernel = ['linear', 'polynomial', 'rbf', 'sigmoid']  # 'linear' is not defined
-    C = [0.5, 1, 2]
+    C = [0.1, 0.3, 0.5, 1, 2, 4, 10]
     class_weight = [None, 'balanced']
-    # C=1.0,
-    # kernel="rbf",
     # degree=3,
     # gamma="scale",
     # coef0=0.0,
@@ -60,40 +57,43 @@ def Experiment_SVM(dataset_train: object, dataset_val: object, dataset_test: obj
     # max_iter=-1,
     # decision_function_shape="ovr",
     # break_ties=False,
-    # random_state=None,
 
     # start training, validation(HP tuning), and test
     hyperparameters = list(itertools.product(kernel, C, class_weight))
-    best_hp = None
+    
+    # FIXME: hyperparamter 병렬화로 val f1, hp, classifier 반환 받아서 
+    # best val_f1의 val_f1, hp, classifer만 추출한 뒤 그걸로 test 수행
+
     best_f1 = 0.0
-    for hp in hyperparameters:
+    for hp in hyperparameters:  # loop 하나당 대충 10분 걸림
         classifier = svm.SVC()
         # svm.LinearSVC
-        # svm.LinearSVR
-        # svm.NuSVC
-        # svm.NuSVR
+        svm.NuSVC
 
         for k, v in zip(tuning_list, hp):
-            eval(f"classifier.set_params({k}='{v}')")
-
-        classifier.fit(X_train, y_train)
-        #FIXME: mode hyperparameters to tune
+            if v == None:
+                continue
+            if isinstance(v, str):
+                eval(f"classifier.set_params({k}='{v}')")
+            else: # numeric types
+                eval(f"classifier.set_params({k}={v})")
         
-        #FIXME: ValueError: y should be a 1d array, got an array of shape (37317, 264) instead
+        tic = time.time()
+        classifier.fit(X_train, y_train_toi)  # 7min 30sec for one fitting.
+        toc = time.time()
+        print(f'time for one fitting : {(toc - tic) // 60}min {(toc - tic) % 60}sec')
+
         pred_val = classifier.predict(X_val)
         
-        f1 = f1_score(y_val, pred_val)
-
-        # higher the f1, the better model
-        if f1 > best_f1:
+        f1 = f1_score(y_val_toi, pred_val)
+        if f1 > best_f1:  # higher the f1, the better model
             best_f1 = f1
             best_hp = hp
-            best_classifier = classifier
-
+            best_classifier = classifier  # 48byte
 
     pred_test = best_classifier.predict(X_test)
 
-    return y_test, np.array(pred_test)
+    return y_test_toi, np.array(pred_test)
 
 
 if __name__ == '__main__':
