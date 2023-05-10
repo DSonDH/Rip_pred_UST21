@@ -357,7 +357,6 @@ def call_experiments_record_performances(model: str,
         df = record_studyname_metrics(df, study_name, metrics_allRange)
         df.to_csv('./results/Results.csv', index=False)
 
-
     elif args.model_name in ['SVM']:
         # SVM은 한번에 여러 시간 예측하는게 아닌, 각각 단일 예측이므로 tois loop없음
         data_set_train = DatasetClass(args=args, flag='train', is_2d=True)
@@ -374,38 +373,71 @@ def call_experiments_record_performances(model: str,
 
         metrics = metric_classifier(y_test, pred_test)
         study_name = f'{args.model_name}_predH{args.pred_len}_IL{args.input_len}_'\
-                        f'PL{args.pred_len}_clasf'
+            f'PL{args.pred_len}_clasf'
         df = record_studyname_metrics(df, study_name, metrics)
         df.to_csv('./results/Results_SVM.csv', index=False)
         # SVM은 너무 느려서 따로 파일 만듦
 
-
     elif args.model_name in ['ML']:  # Random Forest, Extra Gradient Boosting
         """
-        TODO: result should return 3 experiments
-            1. each prediction time model
-            2. all prediction time at once prediciton model
-            3. seq2seq model (all range at once)
-        then I'm going to compare three results and choose to report at the paper
-        => ML로 단일시간 예측하는게 좋은지, seq2seq도 좋은지 얘기할것임
+        pred len 2일때 : from multi (pred1, pred2, pred1~2)
+                        from single (pred2) 가능
+        pred len 1일때 : from single (pred1) 가능
         """
-        # TODO: tr, val, te 모드 정보가 들어가는 지 확인
-        # TODO: 위 주석에 언급한 3개 모드 중 어떤걸로 돌리는지 옵션으로 들어가야 함
+        data_set_train = DatasetClass(args=args, flag='train', is_2d=True)
+        data_set_val = DatasetClass(args=args, flag='val', is_2d=True)
+        data_set_test = DatasetClass(args=args, flag='test', is_2d=True)
+        
+        if args.pred_len // args.itv > 1:
+            # seq2seq mode
+            y_test_label, pred_test = Experiment_ML(data_set_train,
+                                                    data_set_val,
+                                                    data_set_test,
+                                                    pred_len=args.pred_len,
+                                                    n_worker=10,
+                                                    mode='seq2seq'
+                                                    )
 
-        # TODO: 1, 3, 6 예측시간에 대해서 pred_len을 달리 해야할까?
-        # 입력자료 길이는 어떻게 고정할까 ... ? HP로 두고 tuning할까 ?
+            # time of interest select and calculate
+            for toi in args.tois:
+                metrics = metric_classifier(y_test[:, args.itv * toi - 1],
+                                            pred_test[:, args.itv * toi - 1]
+                                            )
+                study_name = f'{args.model_name}_predH{toi}_IL{args.input_len}_'\
+                    f'PL{args.pred_len}_clasf'
+                df = record_studyname_metrics(df, study_name, metrics)
 
-        y_test_label1, pred_test1 = Experiment_ML(
-            setting, 'mode1')  # seq2scalar
-        y_test_label3, pred_test3 = Experiment_ML(setting, 'mode2')  # seq2vec
-        y_test_label6, pred_test6 = Experiment_ML(setting, 'mode3')  # seq2seq
+            # full time metric
+            metrics_allRange = metric_all(y_test, pred_test)
+            study_name = f'{args.model_name}_predH0~2_IL{args.input_len}_'\
+                f'PL{args.pred_len}_regrs'
+            df = record_studyname_metrics(df, study_name, metrics_allRange)
 
-        # calc metrics
-        metrics1 = metric_classifier(y_test_label1, pred_test1)
-        metrics2_1 = metric_classifier(y_test_label2[:, 0], pred_test2[:, 0])
-        metrics2_2 = metric_classifier(y_test_label2[:, 1], pred_test2[:, 1])
-        metrics2_3 = metric_classifier(y_test_label2[:, 2], pred_test2[:, 2])
-        metrics3 = metric_all(y_test_label3, pred_test3)
+            # single mode metric for 2hour prediction
+            y_test_label_2h, pred_test_2h = Experiment_ML(data_set_train,
+                                                          data_set_val,
+                                                          data_set_test,
+                                                          pred_len=args.pred_len,
+                                                          n_worker=10,
+                                                          mode='single')
+            
+            # TODO: edit pred_test into 1D y vector
+            study_name = f'{args.model_name}_predH{toi}_IL{args.input_len}_'\
+                    f'PL{args.pred_len}_clasf'
+            df = record_studyname_metrics(df, study_name, metrics)
+
+        else:
+            assert args.pred_len // args.itv == 1, 'In ML, invalid pred_length !!'
+            y_test_label_1h, pred_test_1h = Experiment_ML(data_set_train,
+                                                          data_set_val,
+                                                          data_set_test,
+                                                          pred_len=args.pred_len,
+                                                          n_worker=10,
+                                                          mode='single')
+            # TODO: edit pred_test into 1D y vector
+
+        df.to_csv('./results/Results.csv', index=False)
+    
 
     else:  # DL models
         """
@@ -457,9 +489,11 @@ if __name__ == '__main__':
     # 최종 best 모델로 결론 낼 때에 맞는 input_len을 제시하면 될듯
 
     #!!! 아래 네줄은 아예 틀린거 아니면 바꾸지 말기
+    # dataloader까지도 영향주는 파라미터임
     itv = 12  # 1시간에 12개 timepoint존재함
     input_lengths = [itv * i for i in [2, 4]]
-    pred_lengths = [itv * i for i in [1, 2]] if model != 'SARIMAX' else [itv * 2]
+    pred_lengths = [itv * i for i in [1, 2]
+                    ] if model != 'SARIMAX' else [itv * 2]
     tois = [1, 2]  # prediction hour which we are interested in
 
     # trainig setting

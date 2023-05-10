@@ -106,38 +106,6 @@ def Experiment_SVM(dataset_train: object, dataset_val: object, dataset_test: obj
     pred_test = best_classifier.predict(X_test)
 
     return y_test_toi, np.array(pred_test)
-    
-    """ no multiprocessing mode
-    best_f1 = 0.0
-    for hp in hyperparameters:  # loop 하나당 대충 10분 ~ 7시간30분 걸림
-        classifier = svm.SVC()
-        # svm.LinearSVC
-        # svm.NuSVC
-
-        for k, v in zip(tuning_list, hp):
-            if v == None:
-                continue
-            if isinstance(v, str):
-                eval(f"classifier.set_params({k}='{v}')")
-            else: # numeric types
-                eval(f"classifier.set_params({k}={v})")
-
-        tic = time.time()
-        classifier.fit(X_train, y_train_toi)  # 7min 30sec for one fitting.
-        toc = time.time()
-        print(f'time for one fitting : {(toc - tic) // 60}min {(toc - tic) % 60}sec')
-
-        pred_val = classifier.predict(X_val)
-
-        f1 = f1_score(y_val_toi, pred_val)
-        if f1 > best_f1:  # higher the f1, the better model
-            best_f1 = f1
-            best_hp = hp
-            best_classifier = classifier  # 48byte
-    pred_test = best_classifier.predict(X_test)
-
-    return y_test_toi, np.array(pred_test)
-    """
 
 
 if __name__ == '__main__':
