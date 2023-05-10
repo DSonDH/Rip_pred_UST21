@@ -58,7 +58,7 @@ def SARIMAX_multiprocess(i: int,
         steps=pred_len, exog=x_test_tmp)
     # fcast_res1 = best_fit_res.get_forecast(steps=pred_len, exog=x_test)
     # fcast_res1.summary_frame()['mean']
-    return np.clip(pred_test_regressor, 0, 1)
+    return pred_test_regressor
 
 
 def Experiment_SARIMAX(dataset: object, pred_len: int = None, n_worker: int = 20
@@ -74,11 +74,8 @@ def Experiment_SARIMAX(dataset: object, pred_len: int = None, n_worker: int = 20
     """
     assert pred_len != None, 'pred_len argument should not be None'
 
-    # Dataset
-
-    # FIXME: [:30, ...]
-    X_test = dataset.X  # N x 32 x 16
-    y_test = dataset.y  # N x 16 x 16
+    X_test = dataset.X
+    y_test = dataset.y
     
     assert X_test.shape[2] == 11 and y_test.shape[2] == 11
 
@@ -94,7 +91,16 @@ def Experiment_SARIMAX(dataset: object, pred_len: int = None, n_worker: int = 20
                             chunksize=1
                             )
     
-    return y_test, np.array(pred_test)
+    pred_test = np.array(pred_test)
+
+    # reverse to original scale
+    y_test_org = dataset.scaler.inverse_transform(y_test)
+    pred_test_org = dataset.scaler.inverse_transform(pred_test)
+
+    y_test_label = y_test_org[:, :, 10]  # select label only
+    pred_test_final = np.clip(pred_test_org, 0, 1).round()
+
+    return y_test_label, pred_test_final
 
 
 if __name__ == '__main__':

@@ -101,26 +101,27 @@ class dotdict(dict):
 
 
 class StandardScaler():
-    def __init__(self, is_2d=False):
+    """
+    2d (N, T * C)로 normalization 하지 않고
+    3d (N, T, C)로 모든 T에 동일하게 scaling하여
+    1d (C) mean, std를 얻도록 한다.
+
+    label (index 10)도 함께 scaling하므로, 나중에 꼭 inverse scaling 해야함.
+    """
+    def __init__(self):
         self.mean = 0.
         self.std = 1.
-        self.is_2d = is_2d
 
     def fit(self, data: np.array):
-        if self.is_2d:
-            dummy = data.reshape(data.shape[0], -1)
-            assert dummy.ndim == 2, 'array should have 2d (B, T * C) channels'
-            self.mean = dummy.mean(axis=0)
-            self.std = dummy.std(axis=0)
-        else:
-            assert data.ndim == 3, 'array should have 3d (B, T, C) channels'
-            self.mean = data.mean(axis=(0, 1))
-            self.std = data.std(axis=(0, 1))
+        assert data.ndim == 3, 'array should have 3d (B, T, C) channels'
+        self.mean = data.mean(axis=(0, 1))
+        self.std = data.std(axis=(0, 1))
 
         assert self.mean.ndim == 1
         assert self.std.ndim == 1
 
     def transform(self, data: np.array):
+        assert data.ndim == 3, 'array should have 3d (B, T, C) channels'
         mean = torch.from_numpy(self.mean).type_as(data).to(data.device) \
             if torch.is_tensor(data) else self.mean
         std = torch.from_numpy(self.std).type_as(data).to(data.device) \
@@ -128,16 +129,18 @@ class StandardScaler():
         return (data - mean) / std
 
     def inverse_transform(self, data: np.array):
-        if self.is_2d:
-            mean = self.mean[10] if torch.is_tensor(data) else self.mean
-            std = self.std[10] if torch.is_tensor(data) else self.std
+        mean = torch.from_numpy(self.mean).type_as(data).to(data.device) \
+            if torch.is_tensor(data) else self.mean
+        std = torch.from_numpy(self.std).type_as(data).to(data.device) \
+            if torch.is_tensor(data) else self.std
+        
+        if data.ndim == 3:
+            # N x T x C
+            assert data.shape[2] > 1, 'number of features are expected to be full'
+            return (data * std) + mean
         else:
-            mean = torch.from_numpy(self.mean).type_as(data).to(data.device) \
-                if torch.is_tensor(data) else self.mean
-            std = torch.from_numpy(self.std).type_as(data).to(data.device) \
-                if torch.is_tensor(data) else self.std
-
-        return (data * std) + mean
+            # N x T
+            return (data * std[-1]) + mean[-1]
 
 
 def print_performance(model_name: str, metrics: dict) -> None:

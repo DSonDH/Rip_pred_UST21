@@ -10,16 +10,16 @@ from experiments.experiment_ML import Experiment_ML
 from experiments.experiment_DL import Experiment_DL
 from metrics.NIA_metrics import metric_classifier, metric_regressor, metric_all
 from utils.tools import record_studyname_metrics
+import numpy as np
 import pandas as pd
 
 
 def parse_args(model: str,
                do_train: bool,
                gpu_idx: int,
-               idx: int, 
                input_len: int,
                pred_len: int,
-               input_dim: int,
+               tois: int,
                n_workers: int,
                epochs: int,
                bs: int,
@@ -101,10 +101,14 @@ def parse_args(model: str,
                         help='device ids of multile gpus')
 
     # -------  input/output length and 'number of feature' settings ------------
+    parser.add_argument('--itv',
+                        type=int,
+                        default=12,
+                        help='number of time point in one hour')
     parser.add_argument('--input_dim',
                         type=int,
-                        default=input_dim,
-                        help='number of input features')
+                        default=11,
+                        help='number of input features, including rip label')
     parser.add_argument('--input_len',
                         type=int,
                         default=input_len,
@@ -113,6 +117,10 @@ def parse_args(model: str,
                         type=int,
                         default=pred_len,
                         help='prediction sequence length, horizon')
+    parser.add_argument('--tois',
+                        type=int,
+                        default=tois,
+                        help='time of interest to evaluate')
     parser.add_argument('--concat_len',
                         type=int,
                         default=0)
@@ -233,10 +241,9 @@ def parse_args(model: str,
 def call_experiments_record_performances(model: str,
                                          do_train: bool,
                                          gpu_idx: int,
-                                         itv: int,
                                          input_len: int,
                                          pred_len: int,
-                                         input_dim: int,
+                                         tois: int,
                                          n_workers: int,
                                          epochs: int,
                                          bs: int,
@@ -249,10 +256,9 @@ def call_experiments_record_performances(model: str,
         model: model name
         do_train: do train or load trained model for testing
         gpu_idx: gpu index for trainig, testing
-        itv: how many time point is in 1-hour? (default: 12)
         input_len: input sequence length
         pred_len: prediction sequence length
-        input_dim: number of input feature
+        tois: time of interests for evaluation
         n_workers: number of workers for preprocessing
         epochs: number of epochs for training
         bs: batch size
@@ -261,10 +267,20 @@ def call_experiments_record_performances(model: str,
     return: pd.dataframe recording experiment results
     """
 
+    assert model in ['SARIMAX', 'SVM', 'ML', 'DL']
+
     args = parse_args(
-        model, do_train, gpu_idx, itv, input_len,
-        pred_len, input_dim, n_workers, epochs,
-        bs, patience, lr
+        model,
+        do_train,
+        gpu_idx,
+        input_len,
+        pred_len,
+        tois,
+        n_workers,
+        epochs,
+        bs,
+        patience,
+        lr
     )
 
     print('\n\n')
@@ -310,66 +326,61 @@ def call_experiments_record_performances(model: str,
                                    'corr']
                           )
 
+    DatasetClass = NIA_data_loader_csvOnly_YearSplit.Dataset_NIA_class
+
     if args.model_name == 'SARIMAX':
-        DatasetClass = NIA_data_loader_csvOnly_YearSplit.Dataset_NIA_class
         data_set_test = DatasetClass(args=args, flag='test', is_2d=False)
 
-        assert args.pred_len == itv * 2, 'pred length of SARIMAX should be 24'
+        assert args.pred_len == args.itv * 2, \
+            'SARIMAX should have 2hour prediction length'
+        # 1시간 예측만 따로하지 않으므로. 1시간, 2시간 함께 예측하려면 2시간 필요
+
         # SARIMAX는 training과정이 없으며, 언제나 testset을 활용함
-        y_test_label, pred_test = Experiment_SARIMAX(
+        y_test, pred_test = Experiment_SARIMAX(
             data_set_test,
-            pred_len=pred_len,
+            pred_len=args.pred_len,
             n_worker=20
         )
 
-        y_test_org = data_set_test.scaler.inverse_transform(y_test_label)[:, :, 10]
-        for toi in [1, 2]: # time of interest metric
-            metrics = metric_classifier(y_test_org[:, itv * toi - 1],
-                                        pred_test[:, itv * toi - 1]
+        for toi in args.tois:  # time of interest metric
+            metrics = metric_classifier(y_test[:, args.itv * toi - 1],
+                                        pred_test[:, args.itv * toi - 1]
                                         )
-            study_name = f'{args.model_name}_predH{toi}_IL{args.input_len}_PL{args.pred_len}_clasf'
+            study_name = f'{args.model_name}_predH{toi}_IL{args.input_len}_'\
+                         f'PL{args.pred_len}_clasf'
             df = record_studyname_metrics(df, study_name, metrics)
-        
+
         # full time metric
-        metrics_allRange = metric_all(y_test_org, pred_test)
-        study_name = f'{args.model_name}_predH0~2_IL{args.input_len}_PL{args.pred_len}_regrs'
+        metrics_allRange = metric_all(y_test, pred_test)
+        study_name = f'{args.model_name}_predH0~2_IL{args.input_len}_'\
+                     f'PL{args.pred_len}_regrs'
         df = record_studyname_metrics(df, study_name, metrics_allRange)
         df.to_csv('./results/Results.csv', index=False)
 
+
     elif args.model_name in ['SVM']:
-        DatasetClass = NIA_data_loader_csvOnly_YearSplit.Dataset_NIA_class
+        # SVM은 한번에 여러 시간 예측하는게 아닌, 각각 단일 예측이므로 tois loop없음
         data_set_train = DatasetClass(args=args, flag='train', is_2d=True)
         data_set_val = DatasetClass(args=args, flag='val', is_2d=True)
         data_set_test = DatasetClass(args=args, flag='test', is_2d=True)
 
-        assert args.pred_len == itv * 2, 'pred length of SARIMAX should be 24'
-        
-        for toi in [1, 2]: # time of interest metric
-            y_test_label, pred_test = Experiment_SVM(
-                data_set_train,
-                data_set_val,
-                data_set_test,
-                pred_len=pred_len,
-                toi=toi,
-                n_worker=20
-            )
+        y_test, pred_test = Experiment_SVM(
+            data_set_train,
+            data_set_val,
+            data_set_test,
+            pred_len=args.pred_len,
+            n_worker=10
+        )
 
-            y_test_org = data_set_test.scaler.inverse_transform(y_test_label
-                                                                )[:, :, 10]
-            metrics = metric_classifier(y_test_org[:, itv * toi - 1],
-                                        pred_test[:, itv * toi - 1]
-                                        )
-            study_name = f'{args.model_name}_predH{toi}_IL{args.input_len}_PL{args.pred_len}_clasf'
-            df = record_studyname_metrics(df, study_name, metrics)
-        
-        # full time metric
-        metrics_allRange = metric_all(y_test_org, pred_test)
-        study_name = f'{args.model_name}_predH0~2_IL{args.input_len}_PL{args.pred_len}_regrs'
-        df = record_studyname_metrics(df, study_name, metrics_allRange)
-        df.to_csv('./results/Results.csv', index=False)
+        metrics = metric_classifier(y_test, pred_test)
+        study_name = f'{args.model_name}_predH{args.pred_len}_IL{args.input_len}_'\
+                        f'PL{args.pred_len}_clasf'
+        df = record_studyname_metrics(df, study_name, metrics)
+        df.to_csv('./results/Results_SVM.csv', index=False)
+        # SVM은 너무 느려서 따로 파일 만듦
 
 
-    elif args.model_name in ['RF', 'XGB']:
+    elif args.model_name in ['ML']:  # Random Forest, Extra Gradient Boosting
         """
         TODO: result should return 3 experiments
             1. each prediction time model
@@ -414,7 +425,11 @@ def call_experiments_record_performances(model: str,
 
         # 입력자료 길이는 어떻게 고정할까 ... ? HP로 두고 tuning할까 ?
 
-        y_test_label, pred_test = Experiment_DL(setting)
+        y_test, pred_test = Experiment_DL(setting)
+
+        # reverse to original scale
+        y_test_org = data_set_test.scaler.inverse_transform(y_test)
+        pred_test_org = data_set_test.scaler.inverse_transform(pred_test)
 
         # calc metrics
         metrics1 = metric_classifier(y_test_label1, pred_test1)
@@ -428,24 +443,24 @@ if __name__ == '__main__':
     # ===================================================
     # configs usually changed
 
-    model = 'SVM'  # FIXME:
-    # SARIMAX, SVM, RF, XGB, MLPvanilla, SimpleLinear, LightTS,
+    model = 'ML'  # FIXME:
+    # SARIMAX, SVM, ML(RF, XGB), MLPvanilla, SimpleLinear, LightTS,
     # Simple1DCNN, SCINET, LSTM, Transformer, Informer
     do_train = True  # FIXME:
     gpu_idx = '1'  # FIXME:
 
-    # data setting. !! 5분 간격이므로 1시간에 12개 존재함
-    itv = 12
-
     # pred_len보다 2배는 길게 input_len 설정하는 듯.
-    # 6시간 예측이면 12시간 input넣어줘야 하는데, 길이기 길면 길수록 결측도 많아지므로
-    # 샘플이 급격히 줄거나 class imbalance가 증가할 수도 있음 이에 따른 성능 하락도 고려해야함
+    # 6시간 예측이면 12시간 input넣어줘야 하는데, 길이가 길면 길수록 결측도 많아지므로
+    # 샘플이 급격히 준다 (실제로 그러함). 그리고 class imbalance가 증가할 수도 있음
+    # 이에 따른 성능 하락도 고려해야함
     # 그리고 모델 complexity에 따라서 필요한 input sequence가 달라진다고 하니깐.
     # 최종 best 모델로 결론 낼 때에 맞는 input_len을 제시하면 될듯
-    input_len = [itv * i for i in [2, 4]]  # FIXME:
-    pred_len = [itv * i for i in [2]]  # FIXME:
-    # pred_len = [itv * i for i in [1, 2]]  # FIXME:
-    input_dim = 11  # FIXME: n_feature. site정보인 onehot vector는 넣지 않기로 함
+
+    #!!! 아래 네줄은 아예 틀린거 아니면 바꾸지 말기
+    itv = 12  # 1시간에 12개 timepoint존재함
+    input_lengths = [itv * i for i in [2, 4]]
+    pred_lengths = [itv * i for i in [1, 2]] if model != 'SARIMAX' else [itv * 2]
+    tois = [1, 2]  # prediction hour which we are interested in
 
     # trainig setting
     epochs = 100  # FIXME:
@@ -455,10 +470,18 @@ if __name__ == '__main__':
     n_workers = 10
     # ===================================================
 
-    for input_len_tmp, pred_len_tmp in list(itertools.product(input_len, pred_len)):
+    for input_len_tmp, pred_len_tmp in list(itertools.product(
+            input_lengths, pred_lengths)):
         # print(input_len_tmp, pred_len_tmp)
-        call_experiments_record_performances(model, do_train, gpu_idx,
-                                             itv, input_len_tmp, pred_len_tmp,
-                                             input_dim, n_workers, epochs,
-                                             batchSize, patience, learningRate
+        call_experiments_record_performances(model,
+                                             do_train,
+                                             gpu_idx,
+                                             input_len_tmp,
+                                             pred_len_tmp,
+                                             tois,
+                                             n_workers,
+                                             epochs,
+                                             batchSize,
+                                             patience,
+                                             learningRate
                                              )

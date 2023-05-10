@@ -18,7 +18,7 @@ class Dataset_NIA_class(Dataset):
     """ 
     if saved meta data is not exist,
     load dataframe and preprocess instances
-    save 2d, 3d scaler and train / validation / test instances
+    save scaler(only 3D) and train / validation / test instances
 
     # implementation details 
     csv : 매년 6월01일 00시 ~ 8월 31일 23시 55분까지 5분간격.
@@ -155,8 +155,7 @@ class Dataset_NIA_class(Dataset):
         angle_inci_beach = [245, 178, 175, 47, 142]  # incidence angle of each beach
 
         if not os.path.exists(
-            f'{self.root_path}/{self.NIA_work}_'
-                f'meta_X_train_{self.input_len}_{self.pred_len}.pkl'):
+            f'{self.root_path}/{self.NIA_work}_meta_X_train_{self.input_len}_{self.pred_len}.pkl'):
 
             print(f'no processed train file. start data preprocessing!! \n')
 
@@ -193,20 +192,15 @@ class Dataset_NIA_class(Dataset):
             X_te = Xy_test[:, :self.input_len, :]
             y_te = Xy_test[:, self.input_len:, :]
 
-            self.scaler_2d = StandardScaler(is_2d=True)
-            self.scaler_3d = StandardScaler(is_2d=False)
-            self.scaler_2d.fit(X_tr)
-            self.scaler_3d.fit(X_tr)
+            self.scaler = StandardScaler()
+            self.scaler.fit(X_tr)
 
+            # !!!! input, pred lenght에 의존해서 뽑히는 갯수가 달라지므로
+            # X든 y든 scaler든 input len, pred len 모두 반영해서 이름지어야 함 !!!
             joblib.dump(
-                self.scaler_2d,
-                f'{self.root_path}/{self.NIA_work}_scaler2D_{self.input_len}_{self.pred_len}.pkl'
-            )
-            joblib.dump(
-                self.scaler_3d,
-                f'{self.root_path}/{self.NIA_work}_scaler3D_{self.input_len}_{self.pred_len}.pkl'
-            )
-
+                self.scaler,
+                f'{self.root_path}/{self.NIA_work}_scaler_{self.input_len}_{self.pred_len}.pkl'
+            )  # scaler only changes with timepoint length of X not y
             joblib.dump(X_tr,
                         f'{self.root_path}/{self.NIA_work}_meta_X_train_{self.input_len}_{self.pred_len}.pkl')
             joblib.dump(y_tr,
@@ -229,26 +223,29 @@ class Dataset_NIA_class(Dataset):
             df.loc[4, 0] = len(X_te)
             df.loc[5, 0] = y_te[..., 10].sum() / y_te.size
             df.to_csv(f'./results/NSample_analysis_{self.NIA_work}_{self.input_len}_{self.pred_len}.csv')
-            # finished if block
+            # finished if-file exists block
 
         # when saved pre-processed file exist: just load files!
         self.X = joblib.load(
             f'{self.root_path}/{self.NIA_work}_meta_X_{self.flag}_{self.input_len}_{self.pred_len}.pkl')
         self.y = joblib.load(
             f'{self.root_path}/{self.NIA_work}_meta_y_{self.flag}_{self.input_len}_{self.pred_len}.pkl')
-
+        self.scaler = joblib.load(
+            f'{self.root_path}/{self.NIA_work}_scaler_{self.input_len}_{self.pred_len}.pkl')
+        
         if self.is_2d:
-            self.scaler = joblib.load(
-                f'{self.root_path}/{self.NIA_work}_scaler2D_{self.input_len}_{self.pred_len}.pkl')
-            self.X = self.X.reshape(self.X.shape[0], -1)  # (N, T, C) to (N, T * C)
-            self.y = self.y.reshape(self.X.shape[0], -1)  # (N, T, C) to (N, T * C)
-        else:
-            self.scaler = joblib.load(
-                f'{self.root_path}/{self.NIA_work}_scaler3D_{self.input_len}_{self.pred_len}.pkl')
-
-        self.X = self.scaler.transform(self.X)
-        self.y = self.scaler.transform(self.y)
-
+            # 2d 판별 모델의 경우, X에 label없어야하고, y는 label만 있어야 함.
+            # y는 scaling되면 안되고.
+            self.X = self.scaler.transform(self.X)
+            self.X = self.X[..., :-1]
+            self.X = self.X.reshape(self.X.shape[0], -1)  # (N, T, C)->(N, T * C)
+            self.y = self.y[..., -1]  # time point정보는 ML에서 쓰는 경우 있음
+        else:  
+            # 3d는 예측 결과를 알아서 뽑아서 성능 계산해야 하므로 
+            # 여기서 scaler말고 건드릴 게 없음
+            self.X = self.scaler.transform(self.X)
+            self.y = self.scaler.transform(self.y)
+        
 
     def __getitem__(self, index):
         return self.X[index, ...], self.y[index, ...]

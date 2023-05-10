@@ -61,6 +61,7 @@ def Corr(true: np.ndarray, pred: np.ndarray) -> float:
     corr = (corr[ind]).mean()
     return corr
 
+
 def metric_regressor(true: np.ndarray, pred: np.ndarray) -> Dict:
     """ true, pred로 성능 계산
     Args:
@@ -77,7 +78,7 @@ def metric_regressor(true: np.ndarray, pred: np.ndarray) -> Dict:
         np.mean하면 N, T함께 계산(flatten해서 계산) T축 먼저 metric 계산해서 
         instance별 성능 뽑고 이 성능을 평균내는거 아닌가 싶었는데, 
         수식으로 써보면 같음 ㄷㄷㄷ
-        즉, time series를 따로 뗴서 하나의 instance로 봐도 무방하다는 것임.
+        즉, time series를 따로 떼서 하나의 instance로 봐도 무방하다는 것임.
         즉, 시계열 추세에 맞지않는 metric이고, 이를 개선하면 논문감? ㅎㅎ
     """
     assert len(true) > 0 and len(pred) > 0, \
