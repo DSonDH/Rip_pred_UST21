@@ -104,6 +104,7 @@ def metric_all(true: np.ndarray, pred: np.ndarray) -> Dict:
     """ 
     from metric_classifier() and metric_regressor(),
     get all metric as dictionary items and return a metrics
+    !! true, pred shape shoulb be 2d (N X T)
     """
     assert len(true) > 0 and len(pred) > 0, \
         'Error of metric_all(): true or pred length is zero'

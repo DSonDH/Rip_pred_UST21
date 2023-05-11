@@ -266,7 +266,8 @@ def call_experiments_record_performances(model: str,
         lr: learning rate
     return: pd.dataframe recording experiment results
     """
-    assert model in ['SARIMAX', 'SVM', 'RF', 'XGB', 'MLPvanilla', 'Simple1DCNN']
+
+    assert model in ['SARIMAX', 'SVM', 'ML', 'DL']
 
     args = parse_args(
         model,
@@ -371,164 +372,58 @@ def call_experiments_record_performances(model: str,
         )
 
         metrics = metric_classifier(y_test, pred_test)
-        study_name = f'{args.model_name}_predH{args.pred_len//args.itv}_'\
-            f'IL{args.input_len}_clasf'
+        study_name = f'{args.model_name}_predH{args.pred_len//args.itv}_IL{args.input_len}_'\
+                    f'PL{args.pred_len}_clasf'
         df = record_studyname_metrics(df, study_name, metrics)
         df.to_csv('./results/Results_SVM.csv', index=False)
         # SVM은 너무 느려서 따로 파일 만듦
-
-    elif args.model_name in ['RF', 'XGB']:
-        """code block for Random Forest, Extra Gradient Boosting
-        pred len 2일때 : from multi (pred1, pred2, pred1~2)
-                        from single (pred2) 가능
-        pred len 1일때 : from single (pred1) 가능
-        """
-        data_set_train = DatasetClass(args=args, flag='train', is_2d=True)
-        data_set_val = DatasetClass(args=args, flag='val', is_2d=True)
-        data_set_test = DatasetClass(args=args, flag='test', is_2d=True)
-
-        data_set_train_3d = DatasetClass(args=args, flag='train', is_2d=True)
-        data_set_val_3d = DatasetClass(args=args, flag='val', is_2d=True)
-        data_set_test_3d = DatasetClass(args=args, flag='test', is_2d=True)
-
-        if args.pred_len == args.itv * 2:
-            # seq2seq mode
-            y_test, pred_test = Experiment_ML(data_set_train_3d,
-                                              data_set_val_3d,
-                                              data_set_test_3d,
-                                              pred_len=args.pred_len,
-                                              n_worker=20,
-                                              mode='seq2seq',
-                                              args=args
-                                              )
-
-            # time of interest select and calculate
-            for toi in args.tois:
-                metrics = metric_classifier(y_test[:, args.itv * toi - 1],
-                                            pred_test[:, args.itv * toi - 1]
-                                            )
-                study_name = f'{args.model_name}_predH{toi}_IL{args.input_len}_'\
-                    f'PL{args.pred_len}_clasf'
-                df = record_studyname_metrics(df, study_name, metrics)
-
-            # full time metric
-            metrics_allRange = metric_all(y_test, pred_test)
-            study_name = f'{args.model_name}_predH0~2_IL{args.input_len}_'\
-                f'PL{args.pred_len}_regrs'
-            df = record_studyname_metrics(df, study_name, metrics_allRange)
-
-            # single mode metric for 2hour prediction
-            y_test_2h, pred_test_2h = Experiment_ML(data_set_train,
-                                                    data_set_val,
-                                                    data_set_test,
-                                                    pred_len=args.pred_len,
-                                                    n_worker=20,
-                                                    mode='single',
-                                                    args=args
-                                                    )
-            metrics = metric_classifier(y_test_2h, pred_test_2h)
-            study_name = f'{args.model_name}_predH{args.pred_len//args.itv}_'\
-                f'IL{args.input_len}_clasf'
-            df = record_studyname_metrics(df, study_name, metrics)
-
-        else:
-            assert args.pred_len // args.itv == 1, 'In ML, invalid pred_length !!'
-            y_test_1h, pred_test_1h = Experiment_ML(data_set_train,
-                                                    data_set_val,
-                                                    data_set_test,
-                                                    pred_len=args.pred_len,
-                                                    n_worker=20,
-                                                    mode='single',
-                                                    args=args)
-            metrics = metric_classifier(y_test_1h, pred_test_1h)
-            study_name = f'{args.model_name}_predH{args.pred_len//args.itv}_'\
-                f'IL{args.input_len}_clasf'
-            df = record_studyname_metrics(df, study_name, metrics)
-
-        df.to_csv('./results/Results.csv', index=False)
-
-    else:  # DL models
-        #TODO: 각 모델별 모델 코드짜고 mini sample로 돌리고 gpu사용 확인
-        # TODO: grid search HPO code 작성
-        # TODO: scinet 같은 경우는 input_len, pred_len이 2의 제곱이 되야하므로
-        # 따로 처리하는 코드 필요
-        
-        assert args.pred_len == args.itv * 2, \
-            'DL models should have 2hour prediction length'
-
-        DL_experiment = Experiment_DL(args)
-        if args.do_train:
-            print(f'{args.model_name}: Start Training {setting}')
-            DL_experiment.train_and_saveModel(setting)
-
-        print(f'{args.model_name}: Start Testing {setting}')
-        y_test, pred_test = DL_experiment.get_true_pred_of_testset(setting)
-
-        # time of interest select and calculate
-        for toi in args.tois:
-            metrics = metric_classifier(y_test[:, args.itv * toi - 1],
-                                        pred_test[:, args.itv * toi - 1]
-                                        )
-            study_name = f'{args.model_name}_predH{toi}_IL{args.input_len}_'\
-                f'PL{args.pred_len}_clasf'
-            df = record_studyname_metrics(df, study_name, metrics)
-
-        # full time metric
-        metrics_allRange = metric_all(y_test, pred_test)
-        study_name = f'{args.model_name}_predH0~2_IL{args.input_len}_'\
-            f'PL{args.pred_len}_regrs'
-        df = record_studyname_metrics(df, study_name, metrics_allRange)
-
-        df.to_csv('./results/Results.csv', index=False)
 
 
 if __name__ == '__main__':
     # ===================================================
     # configs usually changed
 
-    models = ['MLPvanilla', 'Simple1DCNN']  # FIXME:
-    for model in models:
-        # SARIMAX, SVM, ML(RF, XGB), 
-        # DL (MLPvanilla, Simple1DCNN, SimpleLinear, LightTS, SCINET, LSTM, 
-        # Transformer, Informer)
-        do_train = True  # FIXME:
-        gpu_idx = '0'  # FIXME:
+    model = 'SVM'  # FIXME:
+    # SARIMAX, SVM, ML(RF, XGB), MLPvanilla, SimpleLinear, LightTS,
+    # Simple1DCNN, SCINET, LSTM, Transformer, Informer
+    do_train = True  # FIXME:
+    gpu_idx = '1'  # FIXME:
 
-        # pred_len보다 2배는 길게 input_len 설정하는 듯.
-        # 6시간 예측이면 12시간 input넣어줘야 하는데, 길이가 길면 길수록 결측도 많아지므로
-        # 샘플이 급격히 준다 (실제로 그러함). 그리고 class imbalance가 증가할 수도 있음
-        # 이에 따른 성능 하락도 고려해야함
-        # 그리고 모델 complexity에 따라서 필요한 input sequence가 달라진다고 하니깐.
-        # 최종 best 모델로 결론 낼 때에 맞는 input_len을 제시하면 될듯
+    # pred_len보다 2배는 길게 input_len 설정하는 듯.
+    # 6시간 예측이면 12시간 input넣어줘야 하는데, 길이가 길면 길수록 결측도 많아지므로
+    # 샘플이 급격히 준다 (실제로 그러함). 그리고 class imbalance가 증가할 수도 있음
+    # 이에 따른 성능 하락도 고려해야함
+    # 그리고 모델 complexity에 따라서 필요한 input sequence가 달라진다고 하니깐.
+    # 최종 best 모델로 결론 낼 때에 맞는 input_len을 제시하면 될듯
 
-        #!!! 아래 네줄은 아예 틀린거 아니면 바꾸지 말기
-        # dataloader까지도 영향주는 파라미터임
-        itv = 12  # 1시간에 12개 timepoint존재함
-        input_lengths = [itv * i for i in [2, 4]]
-        pred_lengths = [itv * i for i in [2, 1]
-                        ] if model != 'SARIMAX' else [itv * 2]
-        tois = [1, 2]  # prediction hour which we are interested in
+    #!!! 아래 네줄은 아예 틀린거 아니면 바꾸지 말기
+    # dataloader까지도 영향주는 파라미터임
+    itv = 12  # 1시간에 12개 timepoint존재함
+    input_lengths = [itv * i for i in [2, 4]]
+    pred_lengths = [itv * i for i in [1, 2]
+                    ] if model != 'SARIMAX' else [itv * 2]
+    tois = [1, 2]  # prediction hour which we are interested in
 
-        # DL trainig setting
-        epochs = 2  # FIXME:
-        patience = 10  # FIXME:
-        batchSize = 32
-        learningRate = 0.001
-        n_workers = 10
-        # ===================================================
-    
-        for input_len_tmp, pred_len_tmp in list(itertools.product(
-                input_lengths, pred_lengths)):
-            # print(input_len_tmp, pred_len_tmp)
-            call_experiments_record_performances(model,
-                                                do_train,
-                                                gpu_idx,
-                                                input_len_tmp,
-                                                pred_len_tmp,
-                                                tois,
-                                                n_workers,
-                                                epochs,
-                                                batchSize,
-                                                patience,
-                                                learningRate
-                                                )
+    # trainig setting
+    epochs = 100  # FIXME:
+    patience = 10  # FIXME:
+    batchSize = 32
+    learningRate = 0.001
+    n_workers = 10
+    # ===================================================
+
+    for input_len_tmp, pred_len_tmp in list(itertools.product(
+            input_lengths, pred_lengths)):
+        # print(input_len_tmp, pred_len_tmp)
+        call_experiments_record_performances(model,
+                                             do_train,
+                                             gpu_idx,
+                                             input_len_tmp,
+                                             pred_len_tmp,
+                                             tois,
+                                             n_workers,
+                                             epochs,
+                                             batchSize,
+                                             patience,
+                                             learningRate
+                                             )

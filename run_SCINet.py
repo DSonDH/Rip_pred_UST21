@@ -156,4 +156,4 @@ for port in port_list:
         exp.train(setting)
 
     print('Start Testing {}'.format(setting))
-    exp.test(setting)
+    exp.get_true_pred_of_testset(setting)

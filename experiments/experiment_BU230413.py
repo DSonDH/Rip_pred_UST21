@@ -12,7 +12,6 @@ from torch.utils.tensorboard import SummaryWriter
 warnings.filterwarnings('ignore')
 from data_process import (NIA_data_loader_csvOnly_YearSplit,
                           NIA_data_loader_jsonRead)
-from experiments.exp_basic import Exp_Basic
 from metrics.NIA_metrics import metric_regressor, metric_classifier
 
 from models.DNN import DNN
@@ -21,7 +20,7 @@ from utils.tools import (EarlyStopping, adjust_learning_rate, load_model,
                          save_model)
 
 
-class Experiment_DL(Exp_Basic):
+class Experiment_DL(E):
     def __init__(self, args):
         super(Experiment_DL, self).__init__(args)
         self.print_per_iter = 100;
@@ -65,7 +64,7 @@ class Experiment_DL(Exp_Basic):
         elif self.args.model_name == 'Transformer':
             ...
 
-        return model.double()  # double() 이 뭐하는 함수고?
+        return model.double()
 
 
     def _get_data(self, flag):

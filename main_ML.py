@@ -266,7 +266,8 @@ def call_experiments_record_performances(model: str,
         lr: learning rate
     return: pd.dataframe recording experiment results
     """
-    assert model in ['SARIMAX', 'SVM', 'RF', 'XGB', 'MLPvanilla', 'Simple1DCNN']
+
+    assert model in ['SARIMAX', 'SVM', 'RF', 'XGB', 'DL']
 
     args = parse_args(
         model,
@@ -445,54 +446,19 @@ def call_experiments_record_performances(model: str,
                 f'IL{args.input_len}_clasf'
             df = record_studyname_metrics(df, study_name, metrics)
 
-        df.to_csv('./results/Results.csv', index=False)
-
-    else:  # DL models
-        #TODO: 각 모델별 모델 코드짜고 mini sample로 돌리고 gpu사용 확인
-        # TODO: grid search HPO code 작성
-        # TODO: scinet 같은 경우는 input_len, pred_len이 2의 제곱이 되야하므로
-        # 따로 처리하는 코드 필요
-        
-        assert args.pred_len == args.itv * 2, \
-            'DL models should have 2hour prediction length'
-
-        DL_experiment = Experiment_DL(args)
-        if args.do_train:
-            print(f'{args.model_name}: Start Training {setting}')
-            DL_experiment.train_and_saveModel(setting)
-
-        print(f'{args.model_name}: Start Testing {setting}')
-        y_test, pred_test = DL_experiment.get_true_pred_of_testset(setting)
-
-        # time of interest select and calculate
-        for toi in args.tois:
-            metrics = metric_classifier(y_test[:, args.itv * toi - 1],
-                                        pred_test[:, args.itv * toi - 1]
-                                        )
-            study_name = f'{args.model_name}_predH{toi}_IL{args.input_len}_'\
-                f'PL{args.pred_len}_clasf'
-            df = record_studyname_metrics(df, study_name, metrics)
-
-        # full time metric
-        metrics_allRange = metric_all(y_test, pred_test)
-        study_name = f'{args.model_name}_predH0~2_IL{args.input_len}_'\
-            f'PL{args.pred_len}_regrs'
-        df = record_studyname_metrics(df, study_name, metrics_allRange)
-
-        df.to_csv('./results/Results.csv', index=False)
+        df.to_csv('./results/Results_ML.csv', index=False)
 
 
 if __name__ == '__main__':
     # ===================================================
     # configs usually changed
 
-    models = ['MLPvanilla', 'Simple1DCNN']  # FIXME:
+    models = ['RF', 'XGB']  # FIXME:
     for model in models:
-        # SARIMAX, SVM, ML(RF, XGB), 
-        # DL (MLPvanilla, Simple1DCNN, SimpleLinear, LightTS, SCINET, LSTM, 
-        # Transformer, Informer)
+        # SARIMAX, SVM, ML(RF, XGB), MLPvanilla, SimpleLinear, LightTS,
+        # Simple1DCNN, SCINET, LSTM, Transformer, Informer
         do_train = True  # FIXME:
-        gpu_idx = '0'  # FIXME:
+        gpu_idx = '1'  # FIXME:
 
         # pred_len보다 2배는 길게 input_len 설정하는 듯.
         # 6시간 예측이면 12시간 input넣어줘야 하는데, 길이가 길면 길수록 결측도 많아지므로
@@ -510,7 +476,7 @@ if __name__ == '__main__':
         tois = [1, 2]  # prediction hour which we are interested in
 
         # DL trainig setting
-        epochs = 2  # FIXME:
+        epochs = 100  # FIXME:
         patience = 10  # FIXME:
         batchSize = 32
         learningRate = 0.001
