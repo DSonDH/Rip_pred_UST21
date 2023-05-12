@@ -69,7 +69,7 @@ def parse_args(model: str,
                         type=str,
                         default=fname,
                         help='location of the data file')
-    parser.add_argument('--checkpoints',
+    parser.add_argument('--ckpt_path',
                         type=str,
                         default=f'exp/{study}_checkpoints/',
                         help='location of model checkpoints')
@@ -453,8 +453,6 @@ def call_experiments_record_performances(model: str,
         assert args.pred_len == args.itv * 2, \
             'DL models should have 2hour prediction length'
 
-        DL_experiment = Experiment_DL(args)
-
         if args.do_train:
             """do hyperParameter Optimization using grid search"""
             print(f'{args.model_name}: Start Training with tuning !!')
@@ -534,22 +532,26 @@ def call_experiments_record_performances(model: str,
                 tuning_dict_tmp.update(default_dict)
 
                 # TODO: change setting with tuning_dict ??
-                # modelSavedName = '{}_{}_sl{}_pl{}_lr{}_bs{}_hid{}_s{}_l{}_dp{}_inv{}'.format()
-                modelSavedName = 'dummy_removeit'
-                
-                val_loss, hp = DL_experiment.train_and_saveModel(modelSavedName,
-                                                        tuning_dict_tmp
-                                                        )
+                # modelSaveName = '{}_{}_sl{}_pl{}_lr{}_bs{}_hid{}_s{}_l{}_dp{}_inv{}'.format()
+                modelSaveDir = f'{args.ckpt_path}/{args.model_name}_HPO_trial{i}'
+                if not os.path.exists(modelSaveDir):
+                    os.mkdir(modelSaveDir)
+
+                DL_experiment = Experiment_DL(args, tuning_dict_tmp)
+
+                val_loss = DL_experiment.train_and_saveModel(modelSaveDir)
                 if val_loss <= best_loss:  # lower the loss, the better model
+                    best_idx = i
                     best_loss = val_loss
-                    best_hp = hp
+                    best_hp = tuning_dict_tmp
+            # FIXME: when training is done, best만 남기고 싹다 삭제
+            print("dsdfasfsafsdfsadfasdfasdfsdafsad")
 
-
+        # do test
         print(f'{args.model_name}: Start Testing {setting}')
-        setting = None  # FIXME: best 라고 붙은 model prefix 찾아서 그 이름 할당해주기
-        y_test, pred_test = DL_experiment.get_true_pred_of_testset(best_hp, 
-                                                                   setting)
-
+        setting = 'dummy_removeit'  # FIXME: best 라고 붙은 model prefix 찾아서 그 이름 할당해주기
+        y_test, pred_test = DL_experiment.get_true_pred_of_testset(setting, best_hp)
+    
         # time of interest select and calculate
         for toi in args.tois:
             metrics = metric_classifier(y_test[:, args.itv * toi - 1],

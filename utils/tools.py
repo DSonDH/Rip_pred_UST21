@@ -14,13 +14,11 @@ def save_model(epoch:int, lr:float, model:object, save_path:str) -> None:
     print('saved model in ', save_path)
 
 
-def load_model(model, model_dir, model_name, pred_len):
-    if not model_dir:
-        return
-    file_name = os.path.join(model_dir, model_name+str(pred_len)+'.pt')
-
+def load_model(model, file_name):
     if not os.path.exists(file_name):
+        print(f'{file_name} do not exist!!! We cannot load that model\n\n')
         return
+        
     with open(file_name, 'rb') as f:
         checkpoint = torch.load(f, map_location=lambda storage, loc: storage)
         print('This model was trained for {} epochs'.format(
@@ -33,7 +31,7 @@ def load_model(model, model_dir, model_name, pred_len):
     return model, lr, epoch
 
 
-def adjust_learning_rate(optimizer, epoch, args):
+def adjust_learning_rate(optimizer, epoch, args) -> None:
     if args.lradj == 1:
         lr_adjust = {epoch: args.lr * (0.95 ** (epoch // 1))}
 
@@ -50,7 +48,6 @@ def adjust_learning_rate(optimizer, epoch, args):
     else:
         for param_group in optimizer.param_groups:
             lr = param_group['lr']
-    return lr
 
 
 class EarlyStopping:

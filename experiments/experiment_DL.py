@@ -89,6 +89,7 @@ class Experiment_DL():
 
     def _build_model(self, hp: dict):
         # FIXME: parameter setting using hp variables
+
         if self.args.model_name == 'MLPvanilla':
             model = DNN(
                 features=[
@@ -200,15 +201,12 @@ class Experiment_DL():
         return np.average(total_loss)
 
 
-    def train_and_saveModel(self, modelSavedName: str, hp: dict = None) -> tuple:
+    def train_and_saveModel(self, modelSaveDir: str) -> float:
         """
         train for given epochs
         save best models
         return val_score, hp, model (for HPO)
         """
-        model_savePath = os.path.join(self.args.checkpoints, modelSavedName)
-        if not os.path.exists(model_savePath):
-            os.makedirs(model_savePath)
 
         writer = SummaryWriter(
             f'event/run_{self.args.data}/{self.args.model_name}')
@@ -216,19 +214,18 @@ class Experiment_DL():
         earlyStopChecker = EarlyStopping(patience=self.args.patience,
                                          verbose=self.args.earlyStopVerbose)
 
-        model_optim = self._select_optimizer()
-        loss_fn = self._select_loss(self.args.loss)
-
-        if self.args.use_amp:
-            scaler = torch.cuda.amp.GradScaler()
-
         epoch_start = 0
         if self.args.resume:
-            self.model, lr, epoch_start = load_model(self.model,
-                                                     model_savePath,
-                                                     model_name=self.args.data,
-                                                     pred_len=self.args.pred_len
-                                                     )
+            fname = f'{modelSaveDir}/{self.args.data}{self.args.pred_len}.pt'
+            self.model, lr, epoch_start = load_model(self.model, fname)
+            self.args.lr = lr
+
+        model_optim = self._select_optimizer()
+        
+        loss_fn = self._select_loss(self.args.loss)
+
+        if self.args.use_amp:  # automatic mixed precision training
+            scaler = torch.cuda.amp.GradScaler()
 
         # start epoch based training !!
         time_now = time.time()
@@ -244,7 +241,9 @@ class Experiment_DL():
                 true_scale, pred_scale, mid_scale = \
                     self._process_one_batch(self.dataset_train.scaler,
                                             batch_x,
-                                            batch_y)
+                                            batch_y
+                                            )
+                
                 # torch loss는 pred true순서임. true pred순서아님.
                 loss_value = loss_fn(pred_scale, true_scale)
                 if mid_scale != None:
@@ -258,7 +257,7 @@ class Experiment_DL():
                           f"{loss_value.item():.7f} | speed: {speed:.4f}s/iter")
                     time_now = time.time()
 
-                if self.args.use_amp:  # use automatic mixed precision training
+                if self.args.use_amp:  # automatic mixed precision training
                     print('use amp')
                     scaler.scale(loss_value).backward()
                     scaler.step(model_optim)
@@ -269,10 +268,9 @@ class Experiment_DL():
 
             # when finished one epoch
             train_loss = np.average(train_loss)
-            val_loss = self.get_validation_loss(
-                self.val_loader, loss_fn)
-            print(
-                f"Epoch: {epoch + 1} time: {time.time() - epoch_time:.1f}sec")
+            val_loss = self.get_validation_loss(self.val_loader, loss_fn)
+
+            print(f"Epoch: {epoch + 1} time: {time.time() - epoch_time:.1f}sec")
             print('--------start to validate-----------')
             print(f"Epoch: {epoch + 1}, Steps: {len(self.train_loader)} | "
                   f"Train Loss: {train_loss:.7f} valid Loss: {val_loss:.7f}")
@@ -282,40 +280,43 @@ class Experiment_DL():
 
             earlyStopChecker(val_loss)
             if earlyStopChecker.counter == 0:  # improved !
-                save_path = os.path.join(model_savePath,
-                                         f'{self.args.data}_best.pt')
                 save_model(epoch,
-                           self.args.lr,
+                           model_optim.param_groups[0]['lr'],
                            self.model,
-                           save_path
+                           f'{modelSaveDir}/{self.args.data}'\
+                           f'_pl{self.args.pred_len}_best.pt'
                            )
             elif earlyStopChecker.early_stop:
                 print("\n\n!!! Early stopping \n\n")
                 break
 
-            lr = adjust_learning_rate(model_optim, epoch + 1, self.args)
-            assert lr == self.args.lr, 'adjust_learning_rate function is weird'
+            adjust_learning_rate(model_optim, epoch + 1, self.args)
+            # 실제로 적용되는 model_optim.param_groups[0]['lr']가 계속 업데이트 됨.
+            # args.lr 변수의 값 자체는 안바뀜
 
         # when finished all epoch
-        save_path = os.path.join(model_savePath,
-                                 f'{self.args.data}_last.pt')
         save_model(epoch,
-                   self.args.lr,
+                   model_optim.param_groups[0]['lr'],
                    self.model,
-                   save_path
+                   f'{modelSaveDir}/{self.args.data}'\
+                   f'_pl{self.args.pred_len}_last.pt'
                    )
 
-        return val_loss, hp
+        return val_loss
 
 
-    def get_true_pred_of_testset(self, best_hp, modelSavedName) -> tuple:
+    def get_true_pred_of_testset(self, modelSavedName) -> tuple:
         """test using saved best model
         !!! prediction results are rounded
         """
         self.model.eval()
 
-        path = os.path.join(self.args.checkpoints, modelSavedName)
-        best_model_path = f'{path}/checkpoint.pth'
+        best_model_path = f'{self.args.ckpt_path}/{modelSavedName}/'\
+                          f'{self.args.data}_best.pt'
+        if not os.path.exists(best_model_path):
+            best_model_path = f'{self.args.ckpt_path}/{modelSavedName}/'\
+                              f'{self.args.data}_last.pt'
+            
         self.model.load_state_dict(torch.load(best_model_path))
 
         trues = []
