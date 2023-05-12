@@ -146,14 +146,14 @@ for port in port_list:
     torch.backends.cudnn.deterministic = True  # Can change it to False --> default: False
     torch.backends.cudnn.enabled = True
 
-    setting = '{}_{}_sl{}_pl{}_lr{}_bs{}_hid{}_s{}_l{}_dp{}_inv{}'.format(
+    modelSavedName = '{}_{}_sl{}_pl{}_lr{}_bs{}_hid{}_s{}_l{}_dp{}_inv{}'.format(
             args.model,args.data, args.input_len, args.pred_len,args.lr,
             args.batch_size,args.hidden_size,args.stacks, args.levels,args.dropout,args.inverse)
 
     exp = Experiment_DL(args)  # set experiments
     if not args.evaluate:
-        print('Start training {}'.format(setting))
-        exp.train(setting)
+        print('Start training {}'.format(modelSavedName))
+        exp.train(modelSavedName)
 
-    print('Start Testing {}'.format(setting))
-    exp.get_true_pred_of_testset(setting)
+    print('Start Testing {}'.format(modelSavedName))
+    exp.get_true_pred_of_testset(modelSavedName)

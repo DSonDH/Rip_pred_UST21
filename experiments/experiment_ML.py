@@ -60,7 +60,7 @@ def Experiment_ML(dataset_train: object, dataset_val: object, dataset_test: obje
         'verbosity': 0
     }
 
-    # start learning
+    # start learning and tuning
     best_f1 = 0.0
     hyperparameters = list(itertools.product(*tuning_dict.values()))
     for i, hp in enumerate(hyperparameters):

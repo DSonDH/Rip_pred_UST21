@@ -73,10 +73,6 @@ def parse_args(model: str,
                         type=str,
                         default=f'exp/{study}_checkpoints/',
                         help='location of model checkpoints')
-    parser.add_argument('--inverse',
-                        type=bool,
-                        default=False,
-                        help='denorm the output data')
     parser.add_argument('--embed',
                         type=str,
                         default='timeF',
@@ -116,7 +112,7 @@ def parse_args(model: str,
     parser.add_argument('--pred_len',
                         type=int,
                         default=pred_len,
-                        help='prediction sequence length, horizon')
+                        help='prediction sequence length')
     parser.add_argument('--tois',
                         type=int,
                         default=tois,
@@ -155,6 +151,10 @@ def parse_args(model: str,
                         type=int,
                         default=patience,
                         help='early stopping patience')
+    parser.add_argument('--earlyStopVerbose',
+                        type=bool,
+                        default=True,
+                        help='choose to show early stop message or not')
     parser.add_argument('--lr',
                         type=float,
                         default=lr,
@@ -266,7 +266,9 @@ def call_experiments_record_performances(model: str,
         lr: learning rate
     return: pd.dataframe recording experiment results
     """
-    assert model in ['SARIMAX', 'SVM', 'RF', 'XGB', 'MLPvanilla', 'Simple1DCNN']
+    assert model in ['SARIMAX', 'SVM', 'RF', 'XGB', 'MLPvanilla', 'Simple1DCNN',
+                     '1DCNN', 'LSTM', 'Transformer', 'SimpleLinear', 'LightTS',
+                     'SCINet', 'Informer']
 
     args = parse_args(
         model,
@@ -307,11 +309,6 @@ def call_experiments_record_performances(model: str,
     # Can change it to False --> default: False
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.enabled = True
-
-    setting = '{}_{}_sl{}_pl{}_lr{}_bs{}_hid{}_s{}_l{}_dp{}_inv{}'.format(
-        args.model, args.data, args.input_len, args.pred_len, args.lr,
-        args.batch_size, args.hidden_size, args.stacks,
-        args.levels, args.dropout, args.inverse)
 
     # experiment major types:
     # 1. Traditional (SARIMAX, SVM)
@@ -448,21 +445,110 @@ def call_experiments_record_performances(model: str,
         df.to_csv('./results/Results.csv', index=False)
 
     else:  # DL models
+        #TODO: grid search HPO code 작성
         #TODO: 각 모델별 모델 코드짜고 mini sample로 돌리고 gpu사용 확인
-        # TODO: grid search HPO code 작성
-        # TODO: scinet 같은 경우는 input_len, pred_len이 2의 제곱이 되야하므로
-        # 따로 처리하는 코드 필요
+        #TODO: 1DCNN, LSTM, Transformer, SimpleLinear, LightTS, SCINet 순서로 구현
+        #TODO: scinet은 input_len, pred_len이 2의 제곱이 되야하므로 입력자료 처리필요
         
         assert args.pred_len == args.itv * 2, \
             'DL models should have 2hour prediction length'
 
         DL_experiment = Experiment_DL(args)
+
         if args.do_train:
-            print(f'{args.model_name}: Start Training {setting}')
-            DL_experiment.train_and_saveModel(setting)
+            """do hyperParameter Optimization using grid search"""
+            print(f'{args.model_name}: Start Training with tuning !!')
+            
+            #FIXME: HyperParameter tuning option setting 이거 다른 config파일로 옮기기
+            if args.model_name == 'MLPvanilla':
+                tuning_dict = {
+                    'eta': np.arange(0.05, 0.3, step=0.05),
+                    'gamma': np.arange(0, 0.02, step=0.01),
+                }
+            elif args.model_name == 'Simple1DCNN':
+                tuning_dict = {
+                    'max_depth': np.arange(3, 31, step=3),
+                    'max_leaves': np.arange(1, 31, step=3),
+                    'max_depth': np.arange(3, 30, step=2),
+                }
+            elif args.model_name == '1DCNN':
+                tuning_dict = {
+                    'eta': np.arange(0.05, 0.3, step=0.05),
+                    'gamma': np.arange(0, 0.02, step=0.01),
+                }
+            elif args.model_name == 'LSTM':
+                tuning_dict = {
+                    'eta': np.arange(0.05, 0.3, step=0.05),
+                    'gamma': np.arange(0, 0.02, step=0.01),
+                }
+            elif args.model_name == 'Transformer':
+                tuning_dict = {
+                    'eta': np.arange(0.05, 0.3, step=0.05),
+                    'gamma': np.arange(0, 0.02, step=0.01),
+                }
+            elif args.model_name == 'SimpleLinear':
+                tuning_dict = {
+                    'eta': np.arange(0.05, 0.3, step=0.05),
+                    'gamma': np.arange(0, 0.02, step=0.01),
+                }
+            elif args.model_name == 'LightTS':
+                tuning_dict = {
+                    'eta': np.arange(0.05, 0.3, step=0.05),
+                    'gamma': np.arange(0, 0.02, step=0.01),
+                }
+            elif args.model_name == 'SCINet':
+                tuning_dict = {
+                    'eta': np.arange(0.05, 0.3, step=0.05),
+                    'gamma': np.arange(0, 0.02, step=0.01),
+                    # args.lr,
+                    # args.batch_size,
+                    # args.hidden_size,
+                    # args.stacks,
+                    # args.levels,
+                    # args.dropout
+                }
+            elif args.model_name == 'Informer':
+                tuning_dict = {
+                    'eta': np.arange(0.05, 0.3, step=0.05),
+                    'gamma': np.arange(0, 0.02, step=0.01),
+                }
+            else:
+                raise Exception
+
+            default_dict = {
+                'scale_pos_weight': 2,
+                'objective': 'logistic',
+                'early_stopping_rounds': 15,
+                'seed': 1,
+                'verbosity': 0
+            }
+
+            # start learning and tuning
+            best_loss = np.inf
+            hyperparameters = list(itertools.product(*tuning_dict.values()))
+            for i, hp in enumerate(hyperparameters):
+                print(f'--- {args.model_name}: HPO '
+                    f'{i / len(hyperparameters) * 100:.1f}% is on processing ---')
+
+                tuning_dict_tmp = {k: v for k, v in zip(tuning_dict.keys(), hp)}
+                tuning_dict_tmp.update(default_dict)
+
+                # TODO: change setting with tuning_dict ??
+                # modelSavedName = '{}_{}_sl{}_pl{}_lr{}_bs{}_hid{}_s{}_l{}_dp{}_inv{}'.format()
+                modelSavedName = 'dummy_removeit'
+                
+                val_loss, hp = DL_experiment.train_and_saveModel(modelSavedName,
+                                                        tuning_dict_tmp
+                                                        )
+                if val_loss <= best_loss:  # lower the loss, the better model
+                    best_loss = val_loss
+                    best_hp = hp
+
 
         print(f'{args.model_name}: Start Testing {setting}')
-        y_test, pred_test = DL_experiment.get_true_pred_of_testset(setting)
+        setting = None  # FIXME: best 라고 붙은 model prefix 찾아서 그 이름 할당해주기
+        y_test, pred_test = DL_experiment.get_true_pred_of_testset(best_hp, 
+                                                                   setting)
 
         # time of interest select and calculate
         for toi in args.tois:
@@ -486,11 +572,12 @@ if __name__ == '__main__':
     # ===================================================
     # configs usually changed
 
-    models = ['MLPvanilla', 'Simple1DCNN']  # FIXME:
+    models = ['MLPvanilla', 'Simple1DCNN', 'LSTM', 'Transformer', 
+              'SimpleLinear', 'LightTS', 'SCINet', 'Informer']  # FIXME:
     for model in models:
         # SARIMAX, SVM, ML(RF, XGB), 
-        # DL (MLPvanilla, Simple1DCNN, SimpleLinear, LightTS, SCINET, LSTM, 
-        # Transformer, Informer)
+        # DL (MLPvanilla, Simple1DCNN, 1DCNN, LSTM, Transformer, SimpleLinear, 
+        # LightTS, SCINet, Informer)
         do_train = True  # FIXME:
         gpu_idx = '0'  # FIXME:
 

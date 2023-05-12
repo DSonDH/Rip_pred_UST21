@@ -5,25 +5,19 @@ import torch
 import pandas as pd
 
 
-def save_model(epoch, lr, model, model_dir, model_name='pems08', horizon=12):
-    if model_dir is None:
-        return
-    if not os.path.exists(model_dir):
-        os.makedirs(model_dir)
-    file_name = os.path.join(model_dir, model_name+str(horizon)+'.pt')
-    torch.save(
-        {
-            'epoch': epoch,
-            'lr': lr,
-            'model': model.state_dict(),
-        }, file_name)
-    print('save model in ', file_name)
+def save_model(epoch:int, lr:float, model:object, save_path:str) -> None:
+    torch.save({'epoch': epoch,
+                'lr': lr,
+                'model': model.state_dict()},
+               save_path
+               )
+    print('saved model in ', save_path)
 
 
-def load_model(model, model_dir, model_name='pems08', horizon=12):
+def load_model(model, model_dir, model_name, pred_len):
     if not model_dir:
         return
-    file_name = os.path.join(model_dir, model_name+str(horizon)+'.pt')
+    file_name = os.path.join(model_dir, model_name+str(pred_len)+'.pt')
 
     if not os.path.exists(file_name):
         return
@@ -60,44 +54,48 @@ def adjust_learning_rate(optimizer, epoch, args):
 
 
 class EarlyStopping:
-    def __init__(self, patience=7, verbose=False, delta=0):
+    def __init__(self, patience:int = 7, delta: float = 0., 
+                 checkLoss:bool = True, verbose: bool = True):
         self.patience = patience
+        self.delta = delta
+        self.checkLoss = checkLoss  # is it loss to watch? acc or loss
         self.verbose = verbose
         self.counter = 0
-        self.best_score = None
         self.early_stop = False
-        self.val_loss_min = np.Inf
-        self.delta = delta
+        self.best_score = np.inf if checkLoss else 0.
+        
 
-    def __call__(self, val_loss, model, path):
-        score = -val_loss
-        if self.best_score is None:
-            self.best_score = score
-            self.save_checkpoint(val_loss, model, path)
-        elif score < self.best_score + self.delta:
-            self.counter += 1
-            print(
-                f'EarlyStopping counter: {self.counter} out of {self.patience}')
-            if self.counter >= self.patience:
-                self.early_stop = True
+    def __call__(self, score:float) -> None:
+        """inspect early stopping criteria and behave"""
+
+        if self.checkLoss:
+            is_improved = (score - self.best_score) < -self.delta
         else:
+            is_improved = (score - self.best_score) > self.delta
+        
+        if is_improved:  # good epoch
+            if self.verbose:
+                print(f'Validation improved!! '\
+                      f'({self.best_score:.6f} --> {score:.6f}).'\
+                      f' Saving model ...')
             self.best_score = score
-            self.save_checkpoint(val_loss, model, path)
             self.counter = 0
 
-    def save_checkpoint(self, val_loss, model, path):
-        if self.verbose:
-            print(f'Validation loss decreased '
-                  f'({self.val_loss_min:.6f} --> {val_loss:.6f}).  Saving model ...')
-        torch.save(model.state_dict(), path+'/'+'checkpoint.pth')
-        self.val_loss_min = val_loss
+        else:  # bad epoch
+            self.counter += 1
+            if self.verbose:
+                print(
+                    f'EarlyStopping counter: {self.counter} out of {self.patience}')
+                
+            if self.counter >= self.patience:
+                self.early_stop = True
+        
 
-
-class dotdict(dict):
-    """dot.notation access to dictionary attributes"""
-    __getattr__ = dict.get
-    __setattr__ = dict.__setitem__
-    __delattr__ = dict.__delitem__
+# class dotdict(dict):
+#     """dot.notation access to dictionary attributes"""
+#     __getattr__ = dict.get
+#     __setattr__ = dict.__setitem__
+#     __delattr__ = dict.__delitem__
 
 
 class StandardScaler():
@@ -108,6 +106,7 @@ class StandardScaler():
 
     label (index 10)도 함께 scaling하므로, 나중에 꼭 inverse scaling 해야함.
     """
+
     def __init__(self):
         self.mean = 0.
         self.std = 1.
@@ -133,7 +132,7 @@ class StandardScaler():
             if torch.is_tensor(data) else self.mean
         std = torch.from_numpy(self.std).type_as(data).to(data.device) \
             if torch.is_tensor(data) else self.std
-        
+
         if data.ndim == 3:
             # N x T x C
             assert data.shape[2] > 1, 'number of features are expected to be full'
@@ -157,5 +156,5 @@ def record_studyname_metrics(df: pd.DataFrame, study_name: str, metrics: dict
     df.loc[idx, 'study_name'] = study_name
     for item in metrics:
         df.loc[idx, item] = metrics[item]
-    
+
     return df

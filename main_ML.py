@@ -446,7 +446,7 @@ def call_experiments_record_performances(model: str,
                 f'IL{args.input_len}_clasf'
             df = record_studyname_metrics(df, study_name, metrics)
 
-        df.to_csv('./results/Results_ML.csv', index=False)
+        df.to_csv('./results/Results.csv', index=False)
 
 
 if __name__ == '__main__':

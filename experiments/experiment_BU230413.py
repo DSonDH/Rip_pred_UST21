@@ -148,7 +148,7 @@ class Experiment_DL(E):
             self.model, lr, epoch_start = load_model(
                                                     self.model, path, 
                                                      model_name=self.args.data, 
-                                                     horizon=self.args.horizon
+                                                     pred_len=self.args.horizon
                                           )
         else:
             epoch_start = 0
@@ -211,8 +211,8 @@ class Experiment_DL(E):
             test_loss = self.valid(test_data, test_loader, criterion)
             print("Test Loss: {:.7f}".format(test_loss))
 
-        save_model(epoch, lr, self.model, path, model_name=self.args.data, 
-                                                horizon=self.args.pred_len)
+        save_model(epoch, lr, self.model, path, save_path=self.args.data, 
+                                                pred_len=self.args.pred_len)
         best_model_path = path + '/' + 'checkpoint.pth'
         self.model.load_state_dict(torch.load(best_model_path))
 

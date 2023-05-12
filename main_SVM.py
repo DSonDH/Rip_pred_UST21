@@ -375,7 +375,7 @@ def call_experiments_record_performances(model: str,
         study_name = f'{args.model_name}_predH{args.pred_len//args.itv}_IL{args.input_len}_'\
                     f'PL{args.pred_len}_clasf'
         df = record_studyname_metrics(df, study_name, metrics)
-        df.to_csv('./results/Results_SVM.csv', index=False)
+        df.to_csv('./results/Results.csv', index=False)
         # SVM은 너무 느려서 따로 파일 만듦
 
 

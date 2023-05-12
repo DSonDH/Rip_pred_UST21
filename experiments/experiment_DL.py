@@ -3,9 +3,8 @@ from utils.tools import (EarlyStopping, adjust_learning_rate, load_model,
                          save_model)
 from models.SCINet_decompose import SCINet_decomp
 from models.DNN import DNN
-from metrics.NIA_metrics import metric_regressor, metric_classifier
 from data_process import NIA_data_loader_csvOnly_YearSplit
-from utils.tools import print_performance
+import itertools
 
 import os
 import time
@@ -37,12 +36,17 @@ class Experiment_DL():
         : do train process
     valid()
     test()
+
+    !!!! train / validation loss 시계열 예측 task에서 loss는 곧 acc다. 
+    clasf같은 경우는 loss나 f1이나 다를 수 있지만... 
+    따라서 acc, loss둘 다 모니터링 하는건 낭비임 !!!!
     """
 
-    def __init__(self, args):
+    def __init__(self, args, hp):
         self.print_per_iter = 100
         self.args = args
-        self.model = self._build_model().cuda()
+        
+        self.model = self._build_model(hp).cuda()
 
         self.dataset_train = NIA_data_loader_csvOnly_YearSplit.Dataset_NIA_class(
             args=args,
@@ -83,9 +87,8 @@ class Experiment_DL():
         )
 
 
-    def _build_model(self):
-        assert self.args.model_name in ['MLPvanilla', 'Simple1DCNN']
-
+    def _build_model(self, hp: dict):
+        # FIXME: parameter setting using hp variables
         if self.args.model_name == 'MLPvanilla':
             model = DNN(
                 features=[
@@ -99,7 +102,19 @@ class Experiment_DL():
             )
         elif self.args.model_name == 'Simple1DCNN':
             ...
-        elif self.args.model_name == 'RNN':
+            # TODO:FIXME: search basic 1dcnn model and test it
+
+        elif self.args.model_name == 'LSTM':
+            # FIXME:TODO: search basic 1dcnn model and test it
+            ...
+        elif self.args.model_name == 'Transformer':
+            # TODO:FIXME: search basic 1dcnn model and test it
+            ...
+        elif self.args.model_name == 'SimpleLinear':
+            # FIXME:TODO: search basic 1dcnn model and test it
+            ...
+        elif self.args.model_name == 'LightTS':
+            # TODO:FIXME: search basic 1dcnn model and test it
             ...
         elif self.args.model_name == 'SCINet':  # and self.args.decompose:
             model = SCINet_decomp(
@@ -118,26 +133,24 @@ class Experiment_DL():
                 modified=True,
                 RIN=self.args.RIN
             )
-        elif self.args.model_name == 'Transformer':
-            ...
-
         return model.double()  # convert model's parameter dtype to double
 
 
     def _select_optimizer(self):
-        model_optim = optim.Adam(self.model.parameters(), lr=self.args.lr)
+        model_optim = optim.Adam(self.model.parameters(),
+                                 lr=self.args.lr
+                                 )
+        # FIXME: AdamW ?? or any other options as HPO
         return model_optim
 
 
-    def _select_criterion(self, losstype):
+    def _select_loss(self, losstype):
         if losstype == "mse":
             criterion = nn.MSELoss()
         elif losstype == "mae":
             criterion = nn.L1Loss()
-        elif losstype == "BCE":
-            criterion = nn.BCELoss()
         else:
-            criterion = nn.L1Loss()
+            raise Exception
         return criterion
 
 
@@ -164,22 +177,47 @@ class Experiment_DL():
         return batch_y_scaled, pred_scaled, pred_mid_scaled
 
 
-    def train_and_saveModel(self, setting):
+    def get_validation_loss(self, valid_loader, loss_fn) -> float:
+        self.model.eval()
+
+        total_loss = []
+        for batch_x, batch_y in valid_loader:
+
+            true_scale, pred_scale, mid_scale = \
+                self._process_one_batch(self.dataset_val.scaler,
+                                        batch_x,
+                                        batch_y)
+            loss = loss_fn(pred_scale.detach().cpu(),
+                           true_scale.detach().cpu()
+                           )
+            if mid_scale != None:
+                loss += loss_fn(mid_scale.detach().cpu(),
+                                true_scale.detach().cpu()
+                                )
+
+            total_loss.append(loss)
+
+        return np.average(total_loss)
+
+
+    def train_and_saveModel(self, modelSavedName: str, hp: dict = None) -> tuple:
         """
         train for given epochs
         save best models
+        return val_score, hp, model (for HPO)
         """
-        model_savePath = os.path.join(self.args.checkpoints, setting)
+        model_savePath = os.path.join(self.args.checkpoints, modelSavedName)
         if not os.path.exists(model_savePath):
             os.makedirs(model_savePath)
 
         writer = SummaryWriter(
             f'event/run_{self.args.data}/{self.args.model_name}')
 
-        early_stopping = EarlyStopping(patience=self.args.patience,
-                                       verbose=True)
+        earlyStopChecker = EarlyStopping(patience=self.args.patience,
+                                         verbose=self.args.earlyStopVerbose)
+
         model_optim = self._select_optimizer()
-        criterion = self._select_criterion(self.args.loss)
+        loss_fn = self._select_loss(self.args.loss)
 
         if self.args.use_amp:
             scaler = torch.cuda.amp.GradScaler()
@@ -189,8 +227,10 @@ class Experiment_DL():
             self.model, lr, epoch_start = load_model(self.model,
                                                      model_savePath,
                                                      model_name=self.args.data,
-                                                     horizon=self.args.horizon
+                                                     pred_len=self.args.pred_len
                                                      )
+
+        # start epoch based training !!
         time_now = time.time()
         for epoch in range(epoch_start, self.args.train_epochs):
 
@@ -206,84 +246,75 @@ class Experiment_DL():
                                             batch_x,
                                             batch_y)
                 # torch loss는 pred true순서임. true pred순서아님.
-                loss = criterion(pred_scale, true_scale)
+                loss_value = loss_fn(pred_scale, true_scale)
                 if mid_scale != None:
-                    loss += criterion(mid_scale, true_scale)
+                    loss_value += loss_fn(mid_scale, true_scale)
 
-                train_loss.append(loss.item())
+                train_loss.append(loss_value.item())
 
                 if (i + 1) % self.print_per_iter == 0:
                     speed = (time.time() - time_now) / self.print_per_iter
                     print(f"\titers: {i + 1}, epoch: {epoch + 1} | loss: "
-                          f"{loss.item():.7f} | speed: {speed:.4f}s/iter")
+                          f"{loss_value.item():.7f} | speed: {speed:.4f}s/iter")
                     time_now = time.time()
 
                 if self.args.use_amp:  # use automatic mixed precision training
                     print('use amp')
-                    scaler.scale(loss).backward()
+                    scaler.scale(loss_value).backward()
                     scaler.step(model_optim)
                     scaler.update()
                 else:
-                    loss.backward()
+                    loss_value.backward()
                     model_optim.step()
 
-            # one epoch end.
+            # when finished one epoch
             train_loss = np.average(train_loss)
-            valid_loss = self.get_validation_loss(self.val_loader, criterion)
-            print(f"Epoch: {epoch + 1} time: {time.time() - epoch_time:.1f}sec")
+            val_loss = self.get_validation_loss(
+                self.val_loader, loss_fn)
+            print(
+                f"Epoch: {epoch + 1} time: {time.time() - epoch_time:.1f}sec")
             print('--------start to validate-----------')
             print(f"Epoch: {epoch + 1}, Steps: {len(self.train_loader)} | "
-                  f"Train Loss: {train_loss:.7f} valid Loss: {valid_loss:.7f}")
+                  f"Train Loss: {train_loss:.7f} valid Loss: {val_loss:.7f}")
 
             writer.add_scalar('train_loss', train_loss, global_step=epoch)
-            writer.add_scalar('valid_loss', valid_loss, global_step=epoch)
+            writer.add_scalar('valid_loss', val_loss, global_step=epoch)
 
-            early_stopping(valid_loss, self.model, model_savePath)
-            if early_stopping.early_stop:
+            earlyStopChecker(val_loss)
+            if earlyStopChecker.counter == 0:  # improved !
+                save_path = os.path.join(model_savePath,
+                                         f'{self.args.data}_best.pt')
+                save_model(epoch,
+                           self.args.lr,
+                           self.model,
+                           save_path
+                           )
+            elif earlyStopChecker.early_stop:
                 print("\n\n!!! Early stopping \n\n")
                 break
 
             lr = adjust_learning_rate(model_optim, epoch + 1, self.args)
+            assert lr == self.args.lr, 'adjust_learning_rate function is weird'
 
-        # whole epoch ends, save trained model
-        save_model(epoch, lr, self.model, model_savePath,
-                   model_name=self.args.data,
-                   horizon=self.args.pred_len)
-        best_model_path = model_savePath + '/' + 'checkpoint.pth'
+        # when finished all epoch
+        save_path = os.path.join(model_savePath,
+                                 f'{self.args.data}_last.pt')
+        save_model(epoch,
+                   self.args.lr,
+                   self.model,
+                   save_path
+                   )
 
-        # last model과 best모델은 다르므로, best모델로 다시 setting하기
-        self.model.load_state_dict(torch.load(best_model_path))
-
-
-    def get_validation_loss(self, valid_loader, criterion) -> float:
-        self.model.eval()
-        total_loss = []
-        for batch_x, batch_y in valid_loader:
-
-            true_scale, pred_scale, mid_scale = \
-                self._process_one_batch(self.dataset_val.scaler,
-                                        batch_x,
-                                        batch_y)
-
-            loss = criterion(pred_scale.detach().cpu(),
-                             true_scale.detach().cpu()
-                             )
-            if self.args.model_name == 'SCINet':
-                loss += criterion(mid_scale.detach().cpu(),
-                                  true_scale.detach().cpu()
-                                  )
-
-            total_loss.append(loss)
-
-        return np.average(total_loss)
+        return val_loss, hp
 
 
-    def get_true_pred_of_testset(self, setting) -> tuple:
+    def get_true_pred_of_testset(self, best_hp, modelSavedName) -> tuple:
         """test using saved best model
-        !!! prediction results are rounded"""
+        !!! prediction results are rounded
+        """
         self.model.eval()
 
-        path = os.path.join(self.args.checkpoints, setting)
+        path = os.path.join(self.args.checkpoints, modelSavedName)
         best_model_path = f'{path}/checkpoint.pth'
         self.model.load_state_dict(torch.load(best_model_path))
 
@@ -299,5 +330,5 @@ class Experiment_DL():
 
         y_tests = np.concatenate(trues, axis=0)
         pred_tests = np.clip(np.concatenate(preds, axis=0), 0, 1).round()
-        
+
         return y_tests, pred_tests
