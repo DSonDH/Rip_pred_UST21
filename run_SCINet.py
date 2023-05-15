@@ -156,4 +156,4 @@ for port in port_list:
         exp.train(modelSaveDir)
 
     print('Start Testing {}'.format(modelSaveDir))
-    exp.get_true_pred_of_testset(modelSaveDir)
+    exp.get_testResults(modelSaveDir)

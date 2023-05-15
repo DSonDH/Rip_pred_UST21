@@ -284,7 +284,7 @@ class Experiment_DL():
                            model_optim.param_groups[0]['lr'],
                            self.model,
                            f'{modelSaveDir}/{self.args.data}'\
-                           f'_pl{self.args.pred_len}_best.pt'
+                           f'_il{self.args.input_len}_pl{self.args.pred_len}_best.pt'
                            )
             elif earlyStopChecker.early_stop:
                 print("\n\n!!! Early stopping \n\n")
@@ -299,23 +299,21 @@ class Experiment_DL():
                    model_optim.param_groups[0]['lr'],
                    self.model,
                    f'{modelSaveDir}/{self.args.data}'\
-                   f'_pl{self.args.pred_len}_last.pt'
+                   f'_il{self.args.input_len}_pl{self.args.pred_len}_last.pt'
                    )
 
         return val_loss
 
 
-    def get_true_pred_of_testset(self, modelSavedName) -> tuple:
+    def get_testResults(self, savedName) -> tuple:
         """test using saved best model
         !!! prediction results are rounded
         """
         self.model.eval()
 
-        best_model_path = f'{self.args.ckpt_path}/{modelSavedName}/'\
-                          f'{self.args.data}_best.pt'
+        best_model_path = f'{savedName}_best.pt'
         if not os.path.exists(best_model_path):
-            best_model_path = f'{self.args.ckpt_path}/{modelSavedName}/'\
-                              f'{self.args.data}_last.pt'
+            best_model_path = f'{savedName}_last.pt'
             
         self.model.load_state_dict(torch.load(best_model_path))
 

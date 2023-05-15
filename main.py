@@ -2,6 +2,8 @@ import os
 import argparse
 import torch
 import itertools
+import json
+import shutil
 
 from data_process import NIA_data_loader_csvOnly_YearSplit
 from experiments.experiment_SARIMAX import Experiment_SARIMAX
@@ -71,7 +73,7 @@ def parse_args(model: str,
                         help='location of the data file')
     parser.add_argument('--ckpt_path',
                         type=str,
-                        default=f'exp/{study}_checkpoints/',
+                        default=f'exp/{study}_checkpoints',
                         help='location of model checkpoints')
     parser.add_argument('--embed',
                         type=str,
@@ -445,7 +447,6 @@ def call_experiments_record_performances(model: str,
         df.to_csv('./results/Results.csv', index=False)
 
     else:  # DL models
-        #TODO: grid search HPO code 작성
         #TODO: 각 모델별 모델 코드짜고 mini sample로 돌리고 gpu사용 확인
         #TODO: 1DCNN, LSTM, Transformer, SimpleLinear, LightTS, SCINet 순서로 구현
         #TODO: scinet은 input_len, pred_len이 2의 제곱이 되야하므로 입력자료 처리필요
@@ -521,6 +522,7 @@ def call_experiments_record_performances(model: str,
                 'verbosity': 0
             }
 
+            dirName = f'{args.ckpt_path}/{args.model_name}'
             # start learning and tuning
             best_loss = np.inf
             hyperparameters = list(itertools.product(*tuning_dict.values()))
@@ -533,24 +535,39 @@ def call_experiments_record_performances(model: str,
 
                 # TODO: change setting with tuning_dict ??
                 # modelSaveName = '{}_{}_sl{}_pl{}_lr{}_bs{}_hid{}_s{}_l{}_dp{}_inv{}'.format()
-                modelSaveDir = f'{args.ckpt_path}/{args.model_name}_HPO_trial{i}'
+                modelSaveDir = f'{dirName}_HPO_trial{i}'
                 if not os.path.exists(modelSaveDir):
                     os.mkdir(modelSaveDir)
 
                 DL_experiment = Experiment_DL(args, tuning_dict_tmp)
 
-                val_loss = DL_experiment.train_and_saveModel(modelSaveDir)
+                val_loss = DL_experiment.train_and_saveModel(modelSaveDir)  # mae
                 if val_loss <= best_loss:  # lower the loss, the better model
                     best_idx = i
                     best_loss = val_loss
                     best_hp = tuning_dict_tmp
-            # FIXME: when training is done, best만 남기고 싹다 삭제
-            print("dsdfasfsafsdfsadfasdfasdfsdafsad")
-
+            
+            # after all tuning done           
+            for i in range(len(hyperparameters)):
+                if i != best_idx:
+                    # remove trial histories
+                    shutil.rmtree(f'{dirName}_HPO_trial{i}')
+                else:
+                    # keep best model and save best hyper-parameters as json
+                    os.rename(f'{dirName}_HPO_trial{i}', dirName)
+                    
+                    json_saveName = f'{dirName}/bestHyperParams.json'
+                    with open(json_saveName, "w") as outfile:
+                        json.dump(best_hp, outfile, indent=4)
+            
         # do test
         print(f'{args.model_name}: Start Testing {setting}')
-        setting = 'dummy_removeit'  # FIXME: best 라고 붙은 model prefix 찾아서 그 이름 할당해주기
-        y_test, pred_test = DL_experiment.get_true_pred_of_testset(setting, best_hp)
+        setting = 'dummy_removeit'  
+        # FIXME: test 진행되도록 이름 바꿔넣어주기
+        ㅇㄹㄴㅇㄻㄴㄻㄴㅇㄹㄴㅁㅇㄹㄴ
+        savedName = f'{dirName}/{args.model_name}_il{args.input_len}'\
+                    f'_pl{args.pred_len}'
+        y_test, pred_test = DL_experiment.get_testResults(setting, savedName)
     
         # time of interest select and calculate
         for toi in args.tois:
@@ -558,13 +575,13 @@ def call_experiments_record_performances(model: str,
                                         pred_test[:, args.itv * toi - 1]
                                         )
             study_name = f'{args.model_name}_predH{toi}_IL{args.input_len}_'\
-                f'PL{args.pred_len}_clasf'
+                         f'PL{args.pred_len}_clasf'
             df = record_studyname_metrics(df, study_name, metrics)
-
+        
         # full time metric
         metrics_allRange = metric_all(y_test, pred_test)
         study_name = f'{args.model_name}_predH0~2_IL{args.input_len}_'\
-            f'PL{args.pred_len}_regrs'
+                     f'PL{args.pred_len}_regrs'
         df = record_studyname_metrics(df, study_name, metrics_allRange)
 
         df.to_csv('./results/Results.csv', index=False)
