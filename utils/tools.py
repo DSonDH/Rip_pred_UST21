@@ -147,9 +147,11 @@ def print_performance(model_name: str, metrics: dict) -> None:
     print('*'*41)
 
 
-def record_studyname_metrics(df: pd.DataFrame, study_name: str, metrics: dict
+def record_studyname_metrics(df: pd.DataFrame, args:object, 
+                             study_name: str, metrics: dict
                              ) -> pd.DataFrame:
     idx = len(df)
+    df.loc[idx, 'time'] = f'{args.prefix_date}_{args.prefix_time}'
     df.loc[idx, 'study_name'] = study_name
     for item in metrics:
         df.loc[idx, item] = metrics[item]

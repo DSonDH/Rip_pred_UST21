@@ -45,7 +45,7 @@ class Experiment_DL():
     def __init__(self, args, hp):
         self.print_per_iter = 100
         self.args = args
-        
+
         self.model = self._build_model(hp).cuda()
 
         self.dataset_train = NIA_data_loader_csvOnly_YearSplit.Dataset_NIA_class(
@@ -86,19 +86,39 @@ class Experiment_DL():
             drop_last=False
         )
 
-
     def _build_model(self, hp: dict):
         # FIXME: parameter setting using hp variables
 
         if self.args.model_name == 'MLPvanilla':
+
+            # expand 60% of all depths, and shrinks untill last layer
+            n_feature = self.args.input_len * self.args.input_dim
+            n_hl = hp['n_hidden_layer']
+            features = []
+
+            # expand
+            for i in range(n_hl * 3 // 5 + 1):
+                feat1 = int(n_feature * (hp['expand'] ** (i)))
+                feat2 = int(n_feature * (hp['expand'] ** (i + 1)))
+                features.append((feat1, feat2))
+
+            #FIXME: hidden unit 일정하게 .. .?
+            dfsafasdf 
+            # shrink
+            ii = 0
+            feat2 = feat1
+            while (feat2 > hp['out_features']):
+                feat1 = int(n_feature * (hp['expand'] ** (i + 1 - ii)))
+                feat2 = int(n_feature * (hp['expand'] ** (i + 1 - ii - 1)))
+                features.append((feat1, feat2))
+                ii += 1
+
+        # [(264, 396.0), (396, 594), (594, 891), (891, 1336), (891, 594), (594, 396), (396, 128)]
+
+
             model = DNN(
-                features=[
-                    (self.args.input_len * self.args.input_dim, 512),
-                    (512, 1024),
-                    (1024, 2048),
-                    (2048, 1024),
-                    (1024, 128),
-                ],
+                features=features,
+                dropout=hp.dropRate,
                 pred_len=self.args.pred_len
             )
         elif self.args.model_name == 'Simple1DCNN':
@@ -136,14 +156,12 @@ class Experiment_DL():
             )
         return model.double()  # convert model's parameter dtype to double
 
-
     def _select_optimizer(self):
         model_optim = optim.Adam(self.model.parameters(),
                                  lr=self.args.lr
                                  )
         # FIXME: AdamW ?? or any other options as HPO
         return model_optim
-
 
     def _select_loss(self, losstype):
         if losstype == "mse":
@@ -153,7 +171,6 @@ class Experiment_DL():
         else:
             raise Exception
         return criterion
-
 
     def _process_one_batch(self, scaler, batch_x, batch_y) -> tuple:
         """one batch process for train, val, test
@@ -177,7 +194,6 @@ class Experiment_DL():
 
         return batch_y_scaled, pred_scaled, pred_mid_scaled
 
-
     def get_validation_loss(self, valid_loader, loss_fn) -> float:
         self.model.eval()
 
@@ -200,7 +216,6 @@ class Experiment_DL():
 
         return np.average(total_loss)
 
-
     def train_and_saveModel(self, modelSaveDir: str) -> float:
         """
         train for given epochs
@@ -221,7 +236,7 @@ class Experiment_DL():
             self.args.lr = lr
 
         model_optim = self._select_optimizer()
-        
+
         loss_fn = self._select_loss(self.args.loss)
 
         if self.args.use_amp:  # automatic mixed precision training
@@ -243,7 +258,7 @@ class Experiment_DL():
                                             batch_x,
                                             batch_y
                                             )
-                
+
                 # torch loss는 pred true순서임. true pred순서아님.
                 loss_value = loss_fn(pred_scale, true_scale)
                 if mid_scale != None:
@@ -270,7 +285,8 @@ class Experiment_DL():
             train_loss = np.average(train_loss)
             val_loss = self.get_validation_loss(self.val_loader, loss_fn)
 
-            print(f"Epoch: {epoch + 1} time: {time.time() - epoch_time:.1f}sec")
+            print(
+                f"Epoch: {epoch + 1} time: {time.time() - epoch_time:.1f}sec")
             print('--------start to validate-----------')
             print(f"Epoch: {epoch + 1}, Steps: {len(self.train_loader)} | "
                   f"Train Loss: {train_loss:.7f} valid Loss: {val_loss:.7f}")
@@ -283,7 +299,7 @@ class Experiment_DL():
                 save_model(epoch,
                            model_optim.param_groups[0]['lr'],
                            self.model,
-                           f'{modelSaveDir}/{self.args.data}'\
+                           f'{modelSaveDir}/{self.args.model}'
                            f'_il{self.args.input_len}_pl{self.args.pred_len}_best.pt'
                            )
             elif earlyStopChecker.early_stop:
@@ -298,12 +314,11 @@ class Experiment_DL():
         save_model(epoch,
                    model_optim.param_groups[0]['lr'],
                    self.model,
-                   f'{modelSaveDir}/{self.args.data}'\
+                   f'{modelSaveDir}/{self.args.model}'
                    f'_il{self.args.input_len}_pl{self.args.pred_len}_last.pt'
                    )
 
         return val_loss
-
 
     def get_testResults(self, savedName) -> tuple:
         """test using saved best model
@@ -314,8 +329,8 @@ class Experiment_DL():
         best_model_path = f'{savedName}_best.pt'
         if not os.path.exists(best_model_path):
             best_model_path = f'{savedName}_last.pt'
-            
-        self.model.load_state_dict(torch.load(best_model_path))
+
+        load_model(self.model, best_model_path)
 
         trues = []
         preds = []

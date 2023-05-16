@@ -4,6 +4,7 @@ import torch
 import itertools
 import json
 import shutil
+from datetime import datetime
 
 from data_process import NIA_data_loader_csvOnly_YearSplit
 from experiments.experiment_SARIMAX import Experiment_SARIMAX
@@ -12,6 +13,8 @@ from experiments.experiment_ML import Experiment_ML
 from experiments.experiment_DL import Experiment_DL
 from metrics.NIA_metrics import metric_classifier, metric_regressor, metric_all
 from utils.tools import record_studyname_metrics
+from models.Tuning_configs import model_tuning_dict
+
 import numpy as np
 import pandas as pd
 
@@ -26,7 +29,9 @@ def parse_args(model: str,
                epochs: int,
                bs: int,
                patience: int,
-               lr: float
+               lr: float,
+               date_prefix: str,
+               time_prefix: str,
                ) -> None:
     study = 'NIA'
     NIA_work = 'ripcurrent_100p'  # data 전처리 meta file 저장이름 변경용
@@ -37,204 +42,120 @@ def parse_args(model: str,
 
     parser = argparse.ArgumentParser(description=f'{model} on {study} dataset')
     parser.add_argument('--model',
-                        type=str,
-                        required=False,
+                        type=str, required=False,
                         default=f'{model}_{study}_{port}',
                         help='model of the experiment')
 
     # -------  dataset settings --------------
     parser.add_argument('--NIA_work',
-                        type=str,
-                        required=False,
-                        default=NIA_work,
+                        type=str, required=False, default=NIA_work,
                         help='work name of NIA')
     parser.add_argument('--data',
-                        type=str,
-                        required=False,
-                        default=study,
+                        type=str, required=False, default=study,
                         help='name of dataset')
     parser.add_argument('--year',
-                        type=str,
-                        required=False,
-                        default=year,
+                        type=str, required=False, default=year,
                         help='Dataset year')
     parser.add_argument('--port',
-                        type=str,
-                        required=False,
-                        default=port,
+                        type=str, required=False, default=port,
                         help='name of port')
     parser.add_argument('--root_path',
-                        type=str,
-                        default=root_path,
+                        type=str, default=root_path,
                         help='root path of the data file')
     parser.add_argument('--data_path',
-                        type=str,
-                        default=fname,
+                        type=str, default=fname,
                         help='location of the data file')
     parser.add_argument('--ckpt_path',
-                        type=str,
-                        default=f'exp/{study}_checkpoints',
+                        type=str, default=f'exp/{study}_checkpoints',
                         help='location of model checkpoints')
     parser.add_argument('--embed',
-                        type=str,
-                        default='timeF',
+                        type=str, default='timeF',
                         help='time features encoding, options:[timeF, fixed, learned]')
 
     # -------  device settings --------------
     parser.add_argument('--use_gpu',
-                        type=bool,
-                        default=True,
+                        type=bool, default=True,
                         help='use gpu')
     parser.add_argument('--gpu',
-                        type=int,
-                        default=1,
+                        type=int, default=1,
                         help='gpu')
     parser.add_argument('--use_multi_gpu',
-                        action='store_true',
-                        help='use multiple gpus',
+                        action='store_true', help='use multiple gpus',
                         default=False)
     parser.add_argument('--devices',
-                        type=str,
-                        default=gpu_idx,
+                        type=str, default=gpu_idx,
                         help='device ids of multile gpus')
 
     # -------  input/output length and 'number of feature' settings ------------
     parser.add_argument('--itv',
-                        type=int,
-                        default=12,
+                        type=int, default=12,
                         help='number of time point in one hour')
     parser.add_argument('--input_dim',
-                        type=int,
-                        default=11,
+                        type=int, default=11,
                         help='number of input features, including rip label')
     parser.add_argument('--input_len',
-                        type=int,
-                        default=input_len,
+                        type=int, default=input_len,
                         help='input seq length of encoder, look back window')
     parser.add_argument('--pred_len',
-                        type=int,
-                        default=pred_len,
+                        type=int, default=pred_len,
                         help='prediction sequence length')
     parser.add_argument('--tois',
-                        type=int,
-                        default=tois,
+                        type=int, default=tois,
                         help='time of interest to evaluate')
+    # for SCINet
     parser.add_argument('--concat_len',
-                        type=int,
-                        default=0)
+                        type=int, default=0)
     parser.add_argument('--single_step',
-                        type=int,
-                        default=0)
+                        type=int, default=0)
     parser.add_argument('--single_step_output_One',
-                        type=int,
-                        default=0)
-    parser.add_argument('--lastWeight',
-                        type=float,
-                        default=1.0)
+                        type=int, default=0)
 
     # -------  training settings --------------
     parser.add_argument('--cols',
-                        type=str,
-                        nargs='+',
+                        type=str, nargs='+',
                         help='file list')
     parser.add_argument('--num_workers',
-                        type=int,
-                        default=n_workers,
+                        type=int, default=n_workers,
                         help='data loader num workers')
     parser.add_argument('--train_epochs',
-                        type=int,
-                        default=epochs,
+                        type=int, default=epochs,
                         help='train epochs')
     parser.add_argument('--batch_size',
-                        type=int,
-                        default=bs,
+                        type=int, default=bs,
                         help='batch size of train input data')
     parser.add_argument('--patience',
-                        type=int,
-                        default=patience,
+                        type=int, default=patience,
                         help='early stopping patience')
     parser.add_argument('--earlyStopVerbose',
-                        type=bool,
-                        default=True,
+                        type=bool, default=True,
                         help='choose to show early stop message or not')
     parser.add_argument('--lr',
-                        type=float,
-                        default=lr,
+                        type=float, default=lr,
                         help='optimizer learning rate')
     parser.add_argument('--loss',
-                        type=str,
-                        default='mae',
+                        type=str, default='mae',
                         help='loss function')
     parser.add_argument('--lradj',
-                        type=int,
-                        default=1,
+                        type=int, default=1,
                         help='adjust learning rate')
     parser.add_argument('--use_amp',
                         action='store_true',
                         help='use automatic mixed precision training',
                         default=False)
     parser.add_argument('--save',
-                        type=bool,
-                        default=False,
+                        type=bool, default=False,
                         help='save the output results')
     parser.add_argument('--model_name',
-                        type=str,
-                        default=f'{model}')
+                        type=str, default=f'{model}')
     parser.add_argument('--resume',
-                        type=bool,
-                        default=False)
+                        type=bool, default=False)
     # only when you finished trainig
     parser.add_argument('--do_train',
-                        type=bool,
-                        default=do_train)
-
-    # -------  model settings --------------
-    parser.add_argument('--hidden-size',
-                        default=1,
-                        type=float,
-                        help='hidden channel of module')
-    parser.add_argument('--INN',
-                        default=1,
-                        type=int,
-                        help='use INN or basic strategy')
-    parser.add_argument('--kernel',
-                        default=5,
-                        type=int,
-                        help='kernel size, 3, 5, 7')
-    parser.add_argument('--dilation',
-                        default=1,
-                        type=int,
-                        help='dilation')
-    parser.add_argument('--window_size',
-                        default=3,
-                        type=int,
-                        help='input size')
-    parser.add_argument('--dropout',
-                        type=float,
-                        default=0.5,
-                        help='dropout')
-    parser.add_argument('--positionalEcoding',
-                        type=bool,
-                        default=False)
-    parser.add_argument('--groups',
-                        type=int,
-                        default=2)
-    parser.add_argument('--levels',
-                        type=int,
-                        default=2)
-    parser.add_argument('--stacks',
-                        type=int,
-                        default=2,
-                        help='1 stack or 2 stacks')
-    parser.add_argument('--num_decoder_layer',
-                        type=int,
-                        default=1)
-    parser.add_argument('--RIN',
-                        type=bool,
-                        default=False)
-    parser.add_argument('--decompose',
-                        type=bool,
-                        default=True)
+                        type=bool, default=do_train)
+    parser.add_argument('--date_prefix',
+                        type=str, default=date_prefix)
+    parser.add_argument('--time_prefix',
+                        type=str, default=time_prefix)
 
     args = parser.parse_args()
     return args
@@ -250,7 +171,9 @@ def call_experiments_record_performances(model: str,
                                          epochs: int,
                                          bs: int,
                                          patience: int,
-                                         lr: float
+                                         lr: float,
+                                         date_prefix: str,
+                                         time_prefix: str,
                                          ) -> None:
     """ do rip current prediction of 1h, 3h, 6h
         using classification fashion and regression fashion models
@@ -283,7 +206,9 @@ def call_experiments_record_performances(model: str,
         epochs,
         bs,
         patience,
-        lr
+        lr,
+        date_prefix,
+        time_prefix,
     )
 
     print('\n\n')
@@ -319,7 +244,8 @@ def call_experiments_record_performances(model: str,
     if os.path.exists('./results/Results.csv'):
         df = pd.read_csv('./results/Results.csv')
     else:
-        df = pd.DataFrame(columns=['study_name', 'acc', 'f1', 'TP', 'FP', 'FN',
+        df = pd.DataFrame(columns=['time', 'study_name',
+                                   'acc', 'f1', 'TP', 'FP', 'FN',
                                    'TN', 'mae', 'mse', 'rmse', 'mape', 'mspe',
                                    'corr']
                           )
@@ -346,13 +272,13 @@ def call_experiments_record_performances(model: str,
                                         )
             study_name = f'{args.model_name}_predH{toi}_IL{args.input_len}_'\
                          f'PL{args.pred_len}_clasf'
-            df = record_studyname_metrics(df, study_name, metrics)
+            df = record_studyname_metrics(df, args, study_name, metrics)
 
         # full time metric
         metrics_allRange = metric_all(y_test, pred_test)
         study_name = f'{args.model_name}_predH0~2_IL{args.input_len}_'\
                      f'PL{args.pred_len}_regrs'
-        df = record_studyname_metrics(df, study_name, metrics_allRange)
+        df = record_studyname_metrics(df, args, study_name, metrics_allRange)
         df.to_csv('./results/Results.csv', index=False)
 
     elif args.model_name in ['SVM']:
@@ -370,9 +296,9 @@ def call_experiments_record_performances(model: str,
         )
 
         metrics = metric_classifier(y_test, pred_test)
-        study_name = f'{args.model_name}_predH{args.pred_len//args.itv}_'\
+        study_name = f'{args.model_name}_predH{args.pred_len // args.itv}_'\
             f'IL{args.input_len}_clasf'
-        df = record_studyname_metrics(df, study_name, metrics)
+        df = record_studyname_metrics(df, args, study_name, metrics)
         df.to_csv('./results/Results_SVM.csv', index=False)
         # SVM은 너무 느려서 따로 파일 만듦
 
@@ -408,13 +334,14 @@ def call_experiments_record_performances(model: str,
                                             )
                 study_name = f'{args.model_name}_predH{toi}_IL{args.input_len}_'\
                     f'PL{args.pred_len}_clasf'
-                df = record_studyname_metrics(df, study_name, metrics)
+                df = record_studyname_metrics(df, args, study_name, metrics)
 
             # full time metric
             metrics_allRange = metric_all(y_test, pred_test)
             study_name = f'{args.model_name}_predH0~2_IL{args.input_len}_'\
                 f'PL{args.pred_len}_regrs'
-            df = record_studyname_metrics(df, study_name, metrics_allRange)
+            df = record_studyname_metrics(
+                df, args, study_name, metrics_allRange)
 
             # single mode metric for 2hour prediction
             y_test_2h, pred_test_2h = Experiment_ML(data_set_train,
@@ -426,7 +353,7 @@ def call_experiments_record_performances(model: str,
                                                     args=args
                                                     )
             metrics = metric_classifier(y_test_2h, pred_test_2h)
-            study_name = f'{args.model_name}_predH{args.pred_len//args.itv}_'\
+            study_name = f'{args.model_name}_predH{args.pred_len // args.itv}_'\
                 f'IL{args.input_len}_clasf'
             df = record_studyname_metrics(df, study_name, metrics)
 
@@ -440,79 +367,32 @@ def call_experiments_record_performances(model: str,
                                                     mode='single',
                                                     args=args)
             metrics = metric_classifier(y_test_1h, pred_test_1h)
-            study_name = f'{args.model_name}_predH{args.pred_len//args.itv}_'\
+            study_name = f'{args.model_name}_predH{args.pred_len // args.itv}_'\
                 f'IL{args.input_len}_clasf'
             df = record_studyname_metrics(df, study_name, metrics)
 
         df.to_csv('./results/Results.csv', index=False)
 
     else:  # DL models
-        #TODO: 각 모델별 모델 코드짜고 mini sample로 돌리고 gpu사용 확인
-        #TODO: 1DCNN, LSTM, Transformer, SimpleLinear, LightTS, SCINet 순서로 구현
-        #TODO: scinet은 input_len, pred_len이 2의 제곱이 되야하므로 입력자료 처리필요
-        
+        # TODO: 각 모델별 모델 코드짜고 mini sample로 돌리고 gpu사용 확인
+        # TODO: tuning별 성능정리(train, val log, test score)보면 재밌으려나...?
+        # TODO: 1DCNN, LSTM, Transformer, SimpleLinear, LightTS, SCINet 순서로 구현
+        # TODO: scinet은 input_len, pred_len이 2의 제곱이 되야하므로 입력자료 따로 처리?
+
         assert args.pred_len == args.itv * 2, \
             'DL models should have 2hour prediction length'
 
+        # output directory setting
+        dirName = f'{args.ckpt_path}/{args.model_name}_{args.date_prefix}'
+        if os.path.exists(dirName):
+            dirName = f'{dirName}/{args.time_prefix}'
+        if not os.path.exists(dirName):
+            os.mkdir(dirName)
+
+        # training with tuning
         if args.do_train:
             """do hyperParameter Optimization using grid search"""
             print(f'{args.model_name}: Start Training with tuning !!')
-            
-            #FIXME: HyperParameter tuning option setting 이거 다른 config파일로 옮기기
-            if args.model_name == 'MLPvanilla':
-                tuning_dict = {
-                    'eta': np.arange(0.05, 0.3, step=0.05),
-                    'gamma': np.arange(0, 0.02, step=0.01),
-                }
-            elif args.model_name == 'Simple1DCNN':
-                tuning_dict = {
-                    'max_depth': np.arange(3, 31, step=3),
-                    'max_leaves': np.arange(1, 31, step=3),
-                    'max_depth': np.arange(3, 30, step=2),
-                }
-            elif args.model_name == '1DCNN':
-                tuning_dict = {
-                    'eta': np.arange(0.05, 0.3, step=0.05),
-                    'gamma': np.arange(0, 0.02, step=0.01),
-                }
-            elif args.model_name == 'LSTM':
-                tuning_dict = {
-                    'eta': np.arange(0.05, 0.3, step=0.05),
-                    'gamma': np.arange(0, 0.02, step=0.01),
-                }
-            elif args.model_name == 'Transformer':
-                tuning_dict = {
-                    'eta': np.arange(0.05, 0.3, step=0.05),
-                    'gamma': np.arange(0, 0.02, step=0.01),
-                }
-            elif args.model_name == 'SimpleLinear':
-                tuning_dict = {
-                    'eta': np.arange(0.05, 0.3, step=0.05),
-                    'gamma': np.arange(0, 0.02, step=0.01),
-                }
-            elif args.model_name == 'LightTS':
-                tuning_dict = {
-                    'eta': np.arange(0.05, 0.3, step=0.05),
-                    'gamma': np.arange(0, 0.02, step=0.01),
-                }
-            elif args.model_name == 'SCINet':
-                tuning_dict = {
-                    'eta': np.arange(0.05, 0.3, step=0.05),
-                    'gamma': np.arange(0, 0.02, step=0.01),
-                    # args.lr,
-                    # args.batch_size,
-                    # args.hidden_size,
-                    # args.stacks,
-                    # args.levels,
-                    # args.dropout
-                }
-            elif args.model_name == 'Informer':
-                tuning_dict = {
-                    'eta': np.arange(0.05, 0.3, step=0.05),
-                    'gamma': np.arange(0, 0.02, step=0.01),
-                }
-            else:
-                raise Exception
 
             default_dict = {
                 'scale_pos_weight': 2,
@@ -522,67 +402,74 @@ def call_experiments_record_performances(model: str,
                 'verbosity': 0
             }
 
-            dirName = f'{args.ckpt_path}/{args.model_name}'
+            tuning_dict = model_tuning_dict(args)
+
             # start learning and tuning
             best_loss = np.inf
             hyperparameters = list(itertools.product(*tuning_dict.values()))
             for i, hp in enumerate(hyperparameters):
-                print(f'--- {args.model_name}: HPO '
-                    f'{i / len(hyperparameters) * 100:.1f}% is on processing ---')
+                print(f'--- {args.model}: HPO '
+                      f'{i / len(hyperparameters) * 100:.1f}% is on processing ---')
 
-                tuning_dict_tmp = {k: v for k, v in zip(tuning_dict.keys(), hp)}
+                tuning_dict_tmp = {k: v for k,
+                                   v in zip(tuning_dict.keys(), hp)}
                 tuning_dict_tmp.update(default_dict)
 
-                # TODO: change setting with tuning_dict ??
-                # modelSaveName = '{}_{}_sl{}_pl{}_lr{}_bs{}_hid{}_s{}_l{}_dp{}_inv{}'.format()
-                modelSaveDir = f'{dirName}_HPO_trial{i}'
+                # tuning trial들 임시 저장
+                modelSaveDir = f'{dirName}/HPO_trial{i}'
                 if not os.path.exists(modelSaveDir):
                     os.mkdir(modelSaveDir)
 
                 DL_experiment = Experiment_DL(args, tuning_dict_tmp)
 
-                val_loss = DL_experiment.train_and_saveModel(modelSaveDir)  # mae
+                val_loss = DL_experiment.train_and_saveModel(
+                    modelSaveDir)  # mae
                 if val_loss <= best_loss:  # lower the loss, the better model
                     best_idx = i
                     best_loss = val_loss
                     best_hp = tuning_dict_tmp
-            
-            # after all tuning done           
+
+            # after all tuning done
             for i in range(len(hyperparameters)):
                 if i != best_idx:
                     # remove trial histories
-                    shutil.rmtree(f'{dirName}_HPO_trial{i}')
+                    shutil.rmtree(f'{dirName}/HPO_trial{i}')
                 else:
-                    # keep best model and save best hyper-parameters as json
-                    os.rename(f'{dirName}_HPO_trial{i}', dirName)
-                    
+                    # keep best model
+                    os.system(f'mv {dirName}/HPO_trial{i}/* {dirName}')
+                    shutil.rmtree(f'{dirName}/HPO_trial{i}')
+
+                    # save best hyper-parameters as json
                     json_saveName = f'{dirName}/bestHyperParams.json'
                     with open(json_saveName, "w") as outfile:
                         json.dump(best_hp, outfile, indent=4)
-            
+
         # do test
-        print(f'{args.model_name}: Start Testing {setting}')
-        setting = 'dummy_removeit'  
-        # FIXME: test 진행되도록 이름 바꿔넣어주기
-        ㅇㄹㄴㅇㄻㄴㄻㄴㅇㄹㄴㅁㅇㄹㄴ
-        savedName = f'{dirName}/{args.model_name}_il{args.input_len}'\
+        print(f'{args.model}: Start Testing')
+
+        with open(f'{dirName}/bestHyperParams.json', "rb") as f:
+            best_hp = json.load(f)
+
+        DL_experiment = Experiment_DL(args, best_hp)
+
+        savedName = f'{dirName}/{args.model}_il{args.input_len}'\
                     f'_pl{args.pred_len}'
-        y_test, pred_test = DL_experiment.get_testResults(setting, savedName)
-    
-        # time of interest select and calculate
+
+        y_test, pred_test = DL_experiment.get_testResults(savedName)
+
+        # get accuracy
         for toi in args.tois:
             metrics = metric_classifier(y_test[:, args.itv * toi - 1],
                                         pred_test[:, args.itv * toi - 1]
                                         )
             study_name = f'{args.model_name}_predH{toi}_IL{args.input_len}_'\
                          f'PL{args.pred_len}_clasf'
-            df = record_studyname_metrics(df, study_name, metrics)
-        
-        # full time metric
+            df = record_studyname_metrics(df, args, study_name, metrics)
+
         metrics_allRange = metric_all(y_test, pred_test)
         study_name = f'{args.model_name}_predH0~2_IL{args.input_len}_'\
                      f'PL{args.pred_len}_regrs'
-        df = record_studyname_metrics(df, study_name, metrics_allRange)
+        df = record_studyname_metrics(df, args, study_name, metrics_allRange)
 
         df.to_csv('./results/Results.csv', index=False)
 
@@ -591,14 +478,27 @@ if __name__ == '__main__':
     # ===================================================
     # configs usually changed
 
-    models = ['MLPvanilla', 'Simple1DCNN', 'LSTM', 'Transformer', 
+    # models = ['SARIMAX']  # FIXME:
+    # models = ['RF', 'XGB']  # FIXME:
+    models = ['MLPvanilla', 'Simple1DCNN', 'LSTM', 'Transformer',
               'SimpleLinear', 'LightTS', 'SCINet', 'Informer']  # FIXME:
     for model in models:
-        # SARIMAX, SVM, ML(RF, XGB), 
-        # DL (MLPvanilla, Simple1DCNN, 1DCNN, LSTM, Transformer, SimpleLinear, 
+        # SARIMAX, SVM, ML(RF, XGB),
+        # DL (MLPvanilla, Simple1DCNN, 1DCNN, LSTM, Transformer, SimpleLinear,
         # LightTS, SCINet, Informer)
         do_train = True  # FIXME:
-        gpu_idx = '0'  # FIXME:
+
+        if do_train:
+            # 한 날짜가 오래 돌아가는 작업 끝까지 유지돼야함
+            # 같은 날에 여러번 돌리는 작업은 시분초 단위로 독립적으로 생성되도록 함
+            date_prefix = datetime.today().strftime('%Y%m%d')
+            time_prefix = datetime.today().strftime('%H%M%S')
+        else:
+            # test할 때의 시간은 train시간이랑 다를 것이므로, 기존 날짜를 입력해야 함
+            date_prefix = '20230516'  # FIXME:
+            time_prefix = '100542'  # FIXME:
+
+        gpu_idx = '1'  # FIXME:
 
         # pred_len보다 2배는 길게 input_len 설정하는 듯.
         # 6시간 예측이면 12시간 input넣어줘야 하는데, 길이가 길면 길수록 결측도 많아지므로
@@ -611,8 +511,8 @@ if __name__ == '__main__':
         # dataloader까지도 영향주는 파라미터임
         itv = 12  # 1시간에 12개 timepoint존재함
         input_lengths = [itv * i for i in [2, 4]]
-        pred_lengths = [itv * i for i in [2, 1]
-                        ] if model != 'SARIMAX' else [itv * 2]
+        pred_lengths = [itv * i for i in [2, 1]] \
+            if model in ['RF', 'XGB'] else [itv * 2]
         tois = [1, 2]  # prediction hour which we are interested in
 
         # DL trainig setting
@@ -622,19 +522,21 @@ if __name__ == '__main__':
         learningRate = 0.001
         n_workers = 10
         # ===================================================
-    
+
         for input_len_tmp, pred_len_tmp in list(itertools.product(
                 input_lengths, pred_lengths)):
             # print(input_len_tmp, pred_len_tmp)
             call_experiments_record_performances(model,
-                                                do_train,
-                                                gpu_idx,
-                                                input_len_tmp,
-                                                pred_len_tmp,
-                                                tois,
-                                                n_workers,
-                                                epochs,
-                                                batchSize,
-                                                patience,
-                                                learningRate
-                                                )
+                                                 do_train,
+                                                 gpu_idx,
+                                                 input_len_tmp,
+                                                 pred_len_tmp,
+                                                 tois,
+                                                 n_workers,
+                                                 epochs,
+                                                 batchSize,
+                                                 patience,
+                                                 learningRate,
+                                                 date_prefix,
+                                                 time_prefix,
+                                                 )
