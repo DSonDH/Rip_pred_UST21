@@ -314,7 +314,7 @@ def call_experiments_record_performances(model: str,
         data_set_test = DatasetClass(
             args=args,
             flag='test',
-            is_2d=False
+            is2d=False
         )
 
         assert args.pred_len == itv * 2, 'pred length of SARIMAX should be 24'
@@ -403,7 +403,7 @@ if __name__ == '__main__':
     # configs usually changed
 
     model = 'SARIMAX'  # FIXME:
-    # SARIMAX, SVM, RF, XGB, MLPvanilla, SimpleLinear, LightTS,
+    # SARIMAX, SVM, RF, XGB, MLPvanilla, LTSF-Linear, LightTS,
     # Simple1DCNN, SCINET, LSTM, Transformer, Informer
     do_train = True  # FIXME:
     gpu_idx = '1'  # FIXME:

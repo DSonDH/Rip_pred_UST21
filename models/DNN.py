@@ -1,10 +1,11 @@
 from collections import OrderedDict
-import torch.nn.functional as F
 from torch import nn
-import torch
 
 
 class DNN(nn.Module):
+    """ simple dnn
+    It only treats depth, hidden usit size, dropout rate.
+    """
     def __init__(self, 
                  features: list, 
                  pred_len: int, 
@@ -13,10 +14,6 @@ class DNN(nn.Module):
                 ):
         super(DNN, self).__init__()
 
-        # FIXME: 
-        # Batchnorm or LayerNorm
-        # dropout or no dropout
-        
         layers = OrderedDict()
         for idx, params in enumerate(features):
             layer_name = f'linear_{idx + 1}'
@@ -31,13 +28,16 @@ class DNN(nn.Module):
         self.layers = nn.Sequential(layers)
         last_dim = features[-1][-1]
         self.output = nn.Linear(last_dim, pred_len)
+        self.relu = nn.ReLU()
 
-        #TODO: dropout scaling
 
     def forward(self, x):
         # PE = self.get_position_encoding(x)
         # x = x.reshape((-1, x.shape[1] * x.shape[2]))
+
+        #FIXME: dl model별 2d, 3d 적용 수정 !!! 
         hidden = self.layers(x)
         out = self.output(hidden)
+        out = self.relu(out)
         
         return out

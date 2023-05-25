@@ -146,7 +146,7 @@ class SCINet_decomp(nn.Module):
     
         return signal
 
-    def forward(self, x):  #TODO
+    def forward(self, x):
         assert self.input_len % (np.power(2, self.num_levels)) == 0 # evenly divided the input length into two parts. (e.g., 32 -> 16 -> 8 -> 4 for 3 levels)
         x, trend = self.decomp(x)
 

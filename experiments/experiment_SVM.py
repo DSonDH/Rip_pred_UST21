@@ -65,11 +65,13 @@ def Experiment_SVM(dataset_train: object, dataset_val: object, dataset_test: obj
     y_val_toi = y_val[..., pred_len - 1]
     y_test_toi = y_test[..., pred_len - 1]
 
-    # 320 combinataions => 320 * 7.5 hours = 100 days! *친
+    # 320 combinataions => 320 * 7.5 hours = 100 days!
+    # TODO: move this tuning config to models/Tuning_configs.py
     tuning_list = ['kernel', 'C', 'class_weight']
     kernel = ['linear', 'poly', 'rbf']
     C = [0.1, 0.5, 1, 5]
     class_weight = [None, 'balanced']
+    
     # {‘scale’, ‘auto’} or float  # only for ‘rbf’, ‘poly’ and ‘sigmoid’.
 
     # degree=3  # only for kerner = 'poly'

@@ -11,7 +11,7 @@ from experiments.experiment_SARIMAX import Experiment_SARIMAX
 from experiments.experiment_SVM import Experiment_SVM
 from experiments.experiment_ML import Experiment_ML
 from experiments.experiment_DL import Experiment_DL
-from metrics.NIA_metrics import metric_classifier, metric_regressor, metric_all
+from utils.metrics.NIA_metrics import metric_classifier, metric_regressor, metric_all
 from utils.tools import record_studyname_metrics
 from models.Tuning_configs import model_tuning_dict
 
@@ -66,7 +66,7 @@ def parse_args(model: str,
                         type=str, default=fname,
                         help='location of the data file')
     parser.add_argument('--ckpt_path',
-                        type=str, default=f'exp/{study}_checkpoints',
+                        type=str, default=f'results/exp/{study}_checkpoints',
                         help='location of model checkpoints')
     parser.add_argument('--embed',
                         type=str, default='timeF',
@@ -192,7 +192,7 @@ def call_experiments_record_performances(model: str,
     return: pd.dataframe recording experiment results
     """
     assert model in ['SARIMAX', 'SVM', 'RF', 'XGB', 'MLPvanilla', 'Simple1DCNN',
-                     '1DCNN', 'LSTM', 'Transformer', 'SimpleLinear', 'LightTS',
+                     '1DCNN', 'LSTM', 'Transformer', 'LTSF-Linear', 'LightTS',
                      'SCINet', 'Informer']
 
     args = parse_args(
@@ -253,7 +253,7 @@ def call_experiments_record_performances(model: str,
     DatasetClass = NIA_data_loader_csvOnly_YearSplit.Dataset_NIA_class
 
     if args.model_name == 'SARIMAX':
-        data_set_test = DatasetClass(args=args, flag='test', is_2d=False)
+        data_set_test = DatasetClass(args=args, flag='test', is2d=False)
 
         assert args.pred_len == args.itv * 2, \
             'SARIMAX should have 2hour prediction length'
@@ -283,9 +283,9 @@ def call_experiments_record_performances(model: str,
 
     elif args.model_name in ['SVM']:
         # SVM은 한번에 여러 시간 예측하는게 아닌, 각각 단일 예측이므로 tois loop없음
-        data_set_train = DatasetClass(args=args, flag='train', is_2d=True)
-        data_set_val = DatasetClass(args=args, flag='val', is_2d=True)
-        data_set_test = DatasetClass(args=args, flag='test', is_2d=True)
+        data_set_train = DatasetClass(args=args, flag='train', is2d=True)
+        data_set_val = DatasetClass(args=args, flag='val', is2d=True)
+        data_set_test = DatasetClass(args=args, flag='test', is2d=True)
 
         y_test, pred_test = Experiment_SVM(
             data_set_train,
@@ -308,13 +308,13 @@ def call_experiments_record_performances(model: str,
                         from single (pred2) 가능
         pred len 1일때 : from single (pred1) 가능
         """
-        data_set_train = DatasetClass(args=args, flag='train', is_2d=True)
-        data_set_val = DatasetClass(args=args, flag='val', is_2d=True)
-        data_set_test = DatasetClass(args=args, flag='test', is_2d=True)
+        data_set_train = DatasetClass(args=args, flag='train', is2d=True)
+        data_set_val = DatasetClass(args=args, flag='val', is2d=True)
+        data_set_test = DatasetClass(args=args, flag='test', is2d=True)
 
-        data_set_train_3d = DatasetClass(args=args, flag='train', is_2d=True)
-        data_set_val_3d = DatasetClass(args=args, flag='val', is_2d=True)
-        data_set_test_3d = DatasetClass(args=args, flag='test', is_2d=True)
+        data_set_train_3d = DatasetClass(args=args, flag='train', is2d=True)
+        data_set_val_3d = DatasetClass(args=args, flag='val', is2d=True)
+        data_set_test_3d = DatasetClass(args=args, flag='test', is2d=True)
 
         if args.pred_len == args.itv * 2:
             # seq2seq mode
@@ -374,9 +374,8 @@ def call_experiments_record_performances(model: str,
         df.to_csv('./results/Results.csv', index=False)
 
     else:  # DL models
-        # TODO: 각 모델별 모델 코드짜고 mini sample로 돌리고 gpu사용 확인
         # TODO: tuning별 성능정리(train, val log, test score)보면 재밌으려나...?
-        # TODO: 1DCNN, LSTM, Transformer, SimpleLinear, LightTS, SCINet 순서로 구현
+        # TODO: 1DCNN, LSTM, Transformer, LTSF-Linear, LightTS, SCINet 순서로 구현
         # TODO: scinet은 input_len, pred_len이 2의 제곱이 되야하므로 입력자료 따로 처리?
 
         assert args.pred_len == args.itv * 2, \
@@ -409,16 +408,19 @@ def call_experiments_record_performances(model: str,
             hyperparameters = list(itertools.product(*tuning_dict.values()))
             for i, hp in enumerate(hyperparameters):
                 print(f'--- {args.model}: HPO '
-                      f'{i / len(hyperparameters) * 100:.1f}% is on processing ---')
+                      f'processing {i / len(hyperparameters) * 100:.1f}% ---')
 
-                tuning_dict_tmp = {k: v for k,
-                                   v in zip(tuning_dict.keys(), hp)}
+                tuning_dict_tmp = {k: v for k, v in zip(tuning_dict.keys(), hp)}
                 tuning_dict_tmp.update(default_dict)
 
                 # tuning trial들 임시 저장
                 modelSaveDir = f'{dirName}/HPO_trial{i}'
                 if not os.path.exists(modelSaveDir):
                     os.mkdir(modelSaveDir)
+
+                print(f'\n         ======  Now Tuning with trial {i} ======')
+                print(f'{tuning_dict_tmp}')
+                print('         ===========================================\n')
 
                 DL_experiment = Experiment_DL(args, tuning_dict_tmp)
 
@@ -430,6 +432,7 @@ def call_experiments_record_performances(model: str,
                     best_hp = tuning_dict_tmp
 
             # after all tuning done
+            print(f'\n\n***** best index is {best_idx} !!! *****')
             for i in range(len(hyperparameters)):
                 if i != best_idx:
                     # remove trial histories
@@ -440,6 +443,7 @@ def call_experiments_record_performances(model: str,
                     shutil.rmtree(f'{dirName}/HPO_trial{i}')
 
                     # save best hyper-parameters as json
+                    #FIXME: 학습 다 끝나고 TypeError: Object of type int64 is not JSON serializable
                     json_saveName = f'{dirName}/bestHyperParams.json'
                     with open(json_saveName, "w") as outfile:
                         json.dump(best_hp, outfile, indent=4)
@@ -476,15 +480,16 @@ def call_experiments_record_performances(model: str,
 
 if __name__ == '__main__':
     # ===================================================
-    # configs usually changed
+    # TODO:FIXME: 얘네도 tuning_configs안에 넣기 configs usually changed
 
     # models = ['SARIMAX']  # FIXME:
     # models = ['RF', 'XGB']  # FIXME:
+    # 'MLPvanilla', 
     models = ['MLPvanilla', 'Simple1DCNN', 'LSTM', 'Transformer',
-              'SimpleLinear', 'LightTS', 'SCINet', 'Informer']  # FIXME:
+              'LTSF-Linear', 'LightTS', 'SCINet', 'Informer']  # FIXME:
     for model in models:
         # SARIMAX, SVM, ML(RF, XGB),
-        # DL (MLPvanilla, Simple1DCNN, 1DCNN, LSTM, Transformer, SimpleLinear,
+        # DL (MLPvanilla, Simple1DCNN, 1DCNN, LSTM, Transformer, LTSF-Linear,
         # LightTS, SCINet, Informer)
         do_train = True  # FIXME:
 
@@ -509,7 +514,7 @@ if __name__ == '__main__':
 
         #!!! 아래 네줄은 아예 틀린거 아니면 바꾸지 말기
         # dataloader까지도 영향주는 파라미터임
-        itv = 12  # 1시간에 12개 timepoint존재함
+        itv = 12  # how many time points are exist in one hour?
         input_lengths = [itv * i for i in [2, 4]]
         pred_lengths = [itv * i for i in [2, 1]] \
             if model in ['RF', 'XGB'] else [itv * 2]
@@ -540,3 +545,4 @@ if __name__ == '__main__':
                                                  date_prefix,
                                                  time_prefix,
                                                  )
+            

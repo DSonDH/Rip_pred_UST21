@@ -3,6 +3,8 @@ from utils.tools import (EarlyStopping, adjust_learning_rate, load_model,
                          save_model)
 from models.SCINet_decompose import SCINet_decomp
 from models.DNN import DNN
+from models.CNN1D import Simple1DCNN
+
 from data_process import NIA_data_loader_csvOnly_YearSplit
 import itertools
 
@@ -43,25 +45,28 @@ class Experiment_DL():
     """
 
     def __init__(self, args, hp):
-        self.print_per_iter = 100
+        self.print_per_iter = 300
         self.args = args
 
-        self.model = self._build_model(hp).cuda()
+        self.model, is2d = self._build_model(hp)
+        self.model.cuda()
+        
+        self.is2d = is2d
 
         self.dataset_train = NIA_data_loader_csvOnly_YearSplit.Dataset_NIA_class(
             args=args,
             flag='train',
-            is_2d=False
+            is2d=is2d
         )
         self.dataset_val = NIA_data_loader_csvOnly_YearSplit.Dataset_NIA_class(
             args=args,
             flag='val',
-            is_2d=False
+            is2d=is2d
         )
         self.dataset_test = NIA_data_loader_csvOnly_YearSplit.Dataset_NIA_class(
             args=args,
             flag='test',
-            is_2d=False
+            is2d=is2d
         )
 
         self.train_loader = DataLoader(
@@ -87,57 +92,63 @@ class Experiment_DL():
         )
 
     def _build_model(self, hp: dict):
-        # FIXME: parameter setting using hp variables
 
         if self.args.model_name == 'MLPvanilla':
-
-            # expand 60% of all depths, and shrinks untill last layer
-            n_feature = self.args.input_len * self.args.input_dim
-            n_hl = hp['n_hidden_layer']
+            is2d = True
             features = []
+        
+            # input layer
+            features.append((self.args.input_len * self.args.input_dim, 
+                             hp['n_hidden_units']))           
 
-            # expand
-            for i in range(n_hl * 3 // 5 + 1):
-                feat1 = int(n_feature * (hp['expand'] ** (i)))
-                feat2 = int(n_feature * (hp['expand'] ** (i + 1)))
-                features.append((feat1, feat2))
-
-            #FIXME: hidden unit 일정하게 .. .?
-            dfsafasdf 
-            # shrink
-            ii = 0
-            feat2 = feat1
-            while (feat2 > hp['out_features']):
-                feat1 = int(n_feature * (hp['expand'] ** (i + 1 - ii)))
-                feat2 = int(n_feature * (hp['expand'] ** (i + 1 - ii - 1)))
-                features.append((feat1, feat2))
-                ii += 1
-
-        # [(264, 396.0), (396, 594), (594, 891), (891, 1336), (891, 594), (594, 396), (396, 128)]
-
+            # hidden layer
+            for _ in range(hp['n_layers']):
+                features.append((hp['n_hidden_units'], hp['n_hidden_units']))
 
             model = DNN(
                 features=features,
-                dropout=hp.dropRate,
+                dropout=hp['dropRate'],
                 pred_len=self.args.pred_len
             )
+
         elif self.args.model_name == 'Simple1DCNN':
-            ...
-            # TODO:FIXME: search basic 1dcnn model and test it
+            is2d = False
+            features = []
+        
+            # input layer
+            features.append((self.args.input_len, hp['out_channel']))
+            
+            # hidden layer
+            for _ in range(hp['n_layers']):
+                features.append((hp['out_channel'], hp['out_channel']))
+
+            model = Simple1DCNN(
+                features,
+                pred_len=self.args.pred_len,
+                isDepthWise=hp['isDepthWise'],
+                dropout=hp['dropRate'],
+                kernelSize=hp['kernelSize'],
+                dilation=hp['dilation'],
+            )
 
         elif self.args.model_name == 'LSTM':
+            is2d = False
             # FIXME:TODO: search basic 1dcnn model and test it
             ...
         elif self.args.model_name == 'Transformer':
+            is2d = False
             # TODO:FIXME: search basic 1dcnn model and test it
             ...
-        elif self.args.model_name == 'SimpleLinear':
+        elif self.args.model_name == 'LTSF-Linear':
+            is2d = False
             # FIXME:TODO: search basic 1dcnn model and test it
             ...
         elif self.args.model_name == 'LightTS':
+            is2d = False
             # TODO:FIXME: search basic 1dcnn model and test it
             ...
         elif self.args.model_name == 'SCINet':  # and self.args.decompose:
+            is2d = False
             model = SCINet_decomp(
                 output_len=self.args.pred_len,
                 input_len=self.args.input_len,
@@ -154,13 +165,15 @@ class Experiment_DL():
                 modified=True,
                 RIN=self.args.RIN
             )
-        return model.double()  # convert model's parameter dtype to double
+        
+        assert is2d != None
+        return model.double(), is2d  # convert model's parameter dtype to double
+
 
     def _select_optimizer(self):
-        model_optim = optim.Adam(self.model.parameters(),
+        model_optim = optim.AdamW(self.model.parameters(),
                                  lr=self.args.lr
                                  )
-        # FIXME: AdamW ?? or any other options as HPO
         return model_optim
 
     def _select_loss(self, losstype):
@@ -179,7 +192,8 @@ class Experiment_DL():
         batch_x = batch_x.double().cuda()
         batch_y = batch_y[..., -1].double().cuda()
 
-        batch_x = batch_x.reshape((-1, batch_x.shape[1] * batch_x.shape[2]))
+        # if self.is2d:
+            # batch_x = batch_x.reshape((-1, batch_x.shape[1] * batch_x.shape[2]))
 
         if self.args.model_name == 'SCINet':
             pred, pred_mid = self.model(batch_x)
@@ -343,6 +357,11 @@ class Experiment_DL():
             preds.append(pred_scale.detach().cpu().numpy())
 
         y_tests = np.concatenate(trues, axis=0)
-        pred_tests = np.clip(np.concatenate(preds, axis=0), 0, 1).round()
+        
+        assert preds.max() <= 1. and preds.min() > 0.,\
+            'DL output layer should have relu activation or similar one'
+
+        pred_tests = np.concatenate(preds, axis=0).round()
+        # pred_tests = np.clip(np.concatenate(preds, axis=0), 0, 1).round()
 
         return y_tests, pred_tests

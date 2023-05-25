@@ -22,6 +22,7 @@ def SARIMAX_multiprocess(i: int,
     x_test_tmp = y_test[i, :, :10]
 
     # Fit the model
+    # TODO: move this tuning config to models/Tuning_configs.py
     p = range(0, 3)
     d = range(0, 3)
     q = range(0, 3)

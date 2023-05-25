@@ -329,7 +329,7 @@ def call_experiments_record_performances(model: str,
     DatasetClass = NIA_data_loader_csvOnly_YearSplit.Dataset_NIA_class
 
     if args.model_name == 'SARIMAX':
-        data_set_test = DatasetClass(args=args, flag='test', is_2d=False)
+        data_set_test = DatasetClass(args=args, flag='test', is2d=False)
 
         assert args.pred_len == args.itv * 2, \
             'SARIMAX should have 2hour prediction length'
@@ -359,9 +359,9 @@ def call_experiments_record_performances(model: str,
 
     elif args.model_name in ['SVM']:
         # SVM은 한번에 여러 시간 예측하는게 아닌, 각각 단일 예측이므로 tois loop없음
-        data_set_train = DatasetClass(args=args, flag='train', is_2d=True)
-        data_set_val = DatasetClass(args=args, flag='val', is_2d=True)
-        data_set_test = DatasetClass(args=args, flag='test', is_2d=True)
+        data_set_train = DatasetClass(args=args, flag='train', is2d=True)
+        data_set_val = DatasetClass(args=args, flag='val', is2d=True)
+        data_set_test = DatasetClass(args=args, flag='test', is2d=True)
 
         y_test, pred_test = Experiment_SVM(
             data_set_train,
@@ -384,7 +384,7 @@ if __name__ == '__main__':
     # configs usually changed
 
     model = 'SVM'  # FIXME:
-    # SARIMAX, SVM, ML(RF, XGB), MLPvanilla, SimpleLinear, LightTS,
+    # SARIMAX, SVM, ML(RF, XGB), MLPvanilla, LTSF-Linear, LightTS,
     # Simple1DCNN, SCINET, LSTM, Transformer, Informer
     do_train = True  # FIXME:
     gpu_idx = '1'  # FIXME:

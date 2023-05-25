@@ -53,7 +53,7 @@ class Dataset_NIA_class(Dataset):
         when loading saved file : the file is NOT normalized
         You should normalize first when loading saved instances!    
     """
-    def __init__(self, args: dict=None, flag: str=None, is_2d: bool=False,
+    def __init__(self, args: dict=None, flag: str=None, is2d: bool=False,
                  ) -> None:
         assert flag != None, "Please specify 'train' or 'val' or 'test' flag"
         assert args.pred_len != None and args.input_len != None, \
@@ -75,7 +75,7 @@ class Dataset_NIA_class(Dataset):
         self.port = args.port
         self.args = args
         self.flag = flag
-        self.is_2d = is_2d
+        self.is2d = is2d
 
         self.__read_data__()
 
@@ -233,17 +233,16 @@ class Dataset_NIA_class(Dataset):
         self.scaler = joblib.load(
             f'{self.root_path}/{self.NIA_work}_scaler_{self.input_len}_{self.pred_len}.pkl')
         
-        if self.is_2d:
-            # 2d 판별 모델의 경우, X에 label없어야하고, y는 label만 있어야 함.
+        self.X = self.scaler.transform(self.X)
+        self.X = self.X[..., :-1]
+        if self.is2d:
+            # X에 label없어야하고, y는 label만 있어야 함.
             # y는 scaling되면 안되고.
-            self.X = self.scaler.transform(self.X)
-            self.X = self.X[..., :-1]
             self.X = self.X.reshape(self.X.shape[0], -1)  # (N, T, C)->(N, T * C)
-            self.y = self.y[..., -1]  # time point정보는 ML에서 쓰는 경우 있음
+            self.y = self.y[..., -1]  # time point정보 (3d) 는 ML에서 쓰기도 함
         else:  
             # 3d는 예측 결과를 알아서 뽑아서 성능 계산해야 하므로 
             # 여기서 scaler말고 건드릴 게 없음
-            self.X = self.scaler.transform(self.X)
             self.y = self.scaler.transform(self.y)
         
 
