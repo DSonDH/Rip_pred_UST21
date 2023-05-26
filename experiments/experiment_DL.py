@@ -92,11 +92,11 @@ class Experiment_DL():
         )
 
     def _build_model(self, hp: dict):
-
+        """ build model with tuning parameters """
         if self.args.model_name == 'MLPvanilla':
-            is2d = True
+            is2d = False  # 다른 3d dl 모델과 통일시킴
+
             features = []
-        
             # input layer
             features.append((self.args.input_len * self.args.input_dim, 
                              hp['n_hidden_units']))           
@@ -113,17 +113,18 @@ class Experiment_DL():
 
         elif self.args.model_name == 'Simple1DCNN':
             is2d = False
-            features = []
-        
+
+            features = [] 
             # input layer
-            features.append((self.args.input_len, hp['out_channel']))
-            
+            features.append((self.args.input_dim, hp['out_channel']))
+
             # hidden layer
             for _ in range(hp['n_layers']):
                 features.append((hp['out_channel'], hp['out_channel']))
-
+            
             model = Simple1DCNN(
                 features,
+                input_len=self.args.input_len,
                 pred_len=self.args.pred_len,
                 isDepthWise=hp['isDepthWise'],
                 dropout=hp['dropRate'],
@@ -192,8 +193,8 @@ class Experiment_DL():
         batch_x = batch_x.double().cuda()
         batch_y = batch_y[..., -1].double().cuda()
 
-        # if self.is2d:
-            # batch_x = batch_x.reshape((-1, batch_x.shape[1] * batch_x.shape[2]))
+        if self.args.model_name == 'MLPvanilla':
+            batch_x = batch_x.reshape((-1, batch_x.shape[1] * batch_x.shape[2]))
 
         if self.args.model_name == 'SCINet':
             pred, pred_mid = self.model(batch_x)
@@ -274,6 +275,7 @@ class Experiment_DL():
                                             )
 
                 # torch loss는 pred true순서임. true pred순서아님.
+                #FIXME: RuntimeError: The size of tensor a (24) must match the size of tensor b (11) at non-singleton dimension 1
                 loss_value = loss_fn(pred_scale, true_scale)
                 if mid_scale != None:
                     loss_value += loss_fn(mid_scale, true_scale)

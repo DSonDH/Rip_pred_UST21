@@ -424,8 +424,7 @@ def call_experiments_record_performances(model: str,
 
                 DL_experiment = Experiment_DL(args, tuning_dict_tmp)
 
-                val_loss = DL_experiment.train_and_saveModel(
-                    modelSaveDir)  # mae
+                val_loss = DL_experiment.train_and_saveModel(modelSaveDir) # mae
                 if val_loss <= best_loss:  # lower the loss, the better model
                     best_idx = i
                     best_loss = val_loss
@@ -485,7 +484,7 @@ if __name__ == '__main__':
     # models = ['SARIMAX']  # FIXME:
     # models = ['RF', 'XGB']  # FIXME:
     # 'MLPvanilla', 
-    models = ['MLPvanilla', 'Simple1DCNN', 'LSTM', 'Transformer',
+    models = ['Simple1DCNN', 'LSTM', 'Transformer',
               'LTSF-Linear', 'LightTS', 'SCINet', 'Informer']  # FIXME:
     for model in models:
         # SARIMAX, SVM, ML(RF, XGB),

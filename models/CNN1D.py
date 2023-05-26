@@ -11,6 +11,7 @@ class Simple1DCNN(nn.Module):
 
     def __init__(self,
                  features: list,
+                 input_len: int,
                  pred_len: int,
                  kernelSize: int,
                  dilation: int,
@@ -20,6 +21,7 @@ class Simple1DCNN(nn.Module):
 
         super(Simple1DCNN, self).__init__()
         self.features = features
+        self.input_len = input_len
         self.pred_len = pred_len
         self.kernelSize = kernelSize
         self.dilation = dilation
@@ -42,11 +44,12 @@ class Simple1DCNN(nn.Module):
         # TODO: last layer : mlp to aggregate all timestep features
         """
         layers = OrderedDict()
-        for idx, (in_channels, out_channels) in enumerate(features):
-            
-            pad = dilation * (kernelSize - 1) // 2
-            # stride is 1 for same input length and output length
+        
+        pad = dilation * (kernelSize - 1) // 2
+        # stride is 1 for same input length and output length
 
+        # hidden layers
+        for idx, (in_channels, out_channels) in enumerate(features):
             layer_name = f'conv1d_{idx + 1}'
             layers[layer_name] = nn.Conv1d(
                 in_channels,
@@ -66,13 +69,13 @@ class Simple1DCNN(nn.Module):
 
             layer_name2 = f'conv1d-2_{idx + 1}'
             layers[layer_name2] = nn.Conv1d(
-                in_channels * out_channels, 
-                in_channels,
+                in_channels * out_channels if isDepthWise else out_channels,
+                out_channels,
                 padding=pad,
                 padding_mode='replicate',
                 kernel_size=3, 
                 stride=1, 
-                groups=in_channels if isDepthWise else 1
+                groups=1
                 )
             
             act2_name = f'Tanh_{idx + 1}'
@@ -81,17 +84,21 @@ class Simple1DCNN(nn.Module):
             # causal convolution? No.내 자료는 이미 과거/미래 분리가 되어있으므로 필요없음.
             
         self.layers = nn.Sequential(layers)
+        self.flatten = nn.Flatten()
         
         last_dim = features[-1][1]  # features : (in_ch, out_ch, ker_size)
-        self.output = nn.Linear(last_dim, pred_len)
+        self.output = nn.Linear(last_dim * input_len, pred_len)
         self.relu = nn.ReLU()
 
 
     def forward(self, x):
-        # PE = self.get_position_encoding(x)
-        # x = x.reshape((-1, x.shape[1] * x.shape[2]))
+        # (N, C, T) for pytorch
+
+        # RuntimeError: Given groups=11, weight of size [1408, 1, 3], 
+        # expected input[32, 24, 13] to have 11 channels, but got 24 channels instead
         hidden = self.layers(x)
-        out = self.output(hidden)
+        flatten = self.flatten(hidden)
+        out = self.output(flatten)
         out = self.relu(out)
 
         return out

@@ -35,7 +35,6 @@ class DNN(nn.Module):
         # PE = self.get_position_encoding(x)
         # x = x.reshape((-1, x.shape[1] * x.shape[2]))
 
-        #FIXME: dl model별 2d, 3d 적용 수정 !!! 
         hidden = self.layers(x)
         out = self.output(hidden)
         out = self.relu(out)

@@ -10,7 +10,8 @@ def model_tuning_dict(args: object) -> dict:
         }
 
     elif args.model_name == 'Simple1DCNN':
-        # tmp_len = (tmp_len + 2 * padding - dilation * (kernel_size - 1) + stride) // stride
+        # tmp_len = (tmp_len + 2 * padding - dilation * (kernel_size - 1) \
+        # + stride) // stride
         tuning_dict = {
             'n_layers': np.arange(3, 11 + 1, step=2),
             'out_channel': 2 ** np.arange(7, 12, step=1),
